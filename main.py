@@ -1,4 +1,5 @@
 from OpTable import OpTable
+from SymTable import SymTable
 
 """ Used to test Optable.py
 objectCode = OpTable()
