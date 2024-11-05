@@ -23,9 +23,26 @@ class PassOne:
                 self.symbol_table.add_symbol(label, self.location_counter)
             except ValueError as e:
                 print(f"Error: {e}")
+        #Handling immediate addressing
+        for operand in operands:
+            if operand.startswith('#'): #'#' indicates immediate addressing
+                immediate_value = operand[1:]
+                if immediate_value.isdigit():
+                    #If the immediate value is a number, there is no need to add it to the symbol table
+                    continue
+                else:
+                    #Check if it already exists in the symbol table
+                    if not self.symbol_table.get_address(immediate_value):
+                        #If it doesn't exist, add it to the symbol table
+                        self.symbol_table.add_symbol(immediate_value, None)
 
+        #Updating location counter based on instruction length
+        instruction_length = self.get_instruction_length(operation,operands)
+        self.location_counter += instruction_length
+
+        #Store the intermediate code for Pass Two
         hex_location = f'{self.location_counter:04X}' #Convert location counter to hex string
-        self.intermediate_code.append([self.location_counter, label, operation, operands])
+        self.intermediate_code.append([hex_location, label, operation, operands])
 
 
         '''
@@ -84,4 +101,4 @@ class PassOne:
 
         return self.intermediate_code #Return the intermediate code for Pass Two
 
-        
+
