@@ -10,14 +10,31 @@ class PassOne:
         self.location_counter = 0
         self.intermediate_code = [] #Store intermediate code for Pass Two
 
-    def process_line(self, line):
-        #First step is to ignore the comment
-        line = self.remove_comments(line) 
+    def process_line(self, line): 
         #Next, process the line
         """Processes each line of the assembly code for Pass One."""
-        label, operation, operands = self.parse_line(line)
-
+        #label, operation, operands = self.parse_line(line)
+        '''
         #If there is a label
+        if label:
+            try:
+                self.symbol_table.add_symbol(label, self.location_counter)
+            except ValueError as e:
+                print(f"Error: {e}")
+                '''
+        label = None
+        operation = None
+        operands = []
+        #Since the codes are stored in inside, arrays, we can use their length to determine labels, operations, and operands
+        if len(line) == 3:
+            label = line[0]
+            operation = line[1] #The operation is the second element in the array
+            operands = line[2:] #The rest of the elements are operands
+        elif len(line) == 2:
+            operation = line[0]
+            operands = line[1:]
+        elif len(line) == 1:
+            operation = line[0]
         if label:
             try:
                 self.symbol_table.add_symbol(label, self.location_counter)
@@ -36,13 +53,15 @@ class PassOne:
                         #If it doesn't exist, add it to the symbol table
                         self.symbol_table.add_symbol(immediate_value, None)
 
-        #Updating location counter based on instruction length
-        instruction_length = self.get_instruction_length(operation,operands)
-        self.location_counter += instruction_length
+        
 
         #Store the intermediate code for Pass Two
         hex_location = f'{self.location_counter:04X}' #Convert location counter to hex string
         self.intermediate_code.append([hex_location, label, operation, operands])
+
+        #Updating location counter based on instruction length
+        instruction_length = self.get_instruction_length(operation,operands)
+        self.location_counter += instruction_length
 
 
         '''
@@ -57,7 +76,7 @@ class PassOne:
         # At the end of the program, assign addresses to literals
         if operation == 'END':
             self.literal_table.assign_addresses(self.location_counter)
-        ''' #I don't think we need to worry about literals yet
+         #I don't think we need to worry about literals yet
 
     def parse_line(self, line):
         """Basic line parsing to extract label, operation, and operands."""
@@ -74,12 +93,20 @@ class PassOne:
             operands = parts[1:]
         
         return label, operation, operands
+'''#Got rid of parse_line method since we are already splitting the line in process_line
 
     def get_instruction_length(self, operation,operands):
         """Determine the length of an instruction based on its operation."""
         #For now, just check if the operation is RESW. Using basic.txt as a reference
         if operation == 'RESW':
             return 3 * int(operands[0]) #Since each word is 3 bytes
+        elif operation == 'RESB':
+            return int(operands[0]) #Each byte is 1 byte
+        elif operation == 'RESD':
+            return 4 * int(operands[0])
+        elif operation == 'RESQ':
+            return 8 * int(operands[0])
+        
         #Referring to the opTable class for the format type
         opcode_format = self.op_table.getFormat(operation)
         if opcode_format: #If the format is found
@@ -87,18 +114,30 @@ class PassOne:
         else:
             return 3 #Default length for instructions
     
-    def remove_comments(self, line): 
-        #Will remove comments from the line. The comments come after a '.'
-        return line.split('.')[0].strip()
+    def pre_process(self, file_path):
+        #Will read and pre-process the input file to remove comments and white-spaces
+        try:
+            with open(file_path, 'r') as file:
+                lines = []
+                for line in file:
+                    line = line.split('.')[0].strip() #Remove comments
+                    line = line.replace('\t',' ') #Replace tabs with spaces
+                    if line != '':
+                        code = line.split(' ')
+                    lines.append(code) 
+            return lines
+        except FileNotFoundError:
+            print('Error: File was not found.')
+            return []
     
     def run(self, input_file):
         #Will process the input file and return the intermediate code for Pass Two
-        with open(input_file, 'r') as f:
-            for line in f:
-                line = line.strip() #Remove leading and trailing whitespace
-                if line:
-                    self.process_line(line)
-
+        #First, pre-process the file
+        lines = self.pre_process(input_file)
+        for line in lines:
+            self.process_line(line)
         return self.intermediate_code #Return the intermediate code for Pass Two
 
-
+p1 = PassOne()
+ran = p1.run('basic.txt')
+print(ran)
