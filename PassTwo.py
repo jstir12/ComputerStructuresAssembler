@@ -1,76 +1,123 @@
 class PassTwo:
-    def __init__(self, symbol_table, intermediate_code, op_table, basereg):
+    def __init__(self, symbol_table, intermediate_code, op_table, basereg, program_name, start_address):
         self.symbol_table = symbol_table
         self.intermediate_code = intermediate_code
         self.machine_code = []
         self.op_table = op_table
         self.basereg = basereg
+        self.program_name = program_name
+        self.start_address = int(start_address, 16)
+        self.program_length = 0  # To be set after generating machine code
         
     def generate_machine_code(self):
+        pc = self.start_address
         for line in self.intermediate_code:
             # Assume the first element in line is the location counter (PC)
-            pc = line[0]  # Set the current PC for this instruction
+            pc = int(line[0], 16)
 
-            # Parse line for label, mnemonic, and operand as before
+            # Parse line for label, mnemonic, and operand
             label, mnemonic, operand = (None, None, None)
             if len(line) == 4:
-                _, label, mnemonic, operand = line  # Ignore the loc_counter here
+                _, label, mnemonic, operand = line
             elif len(line) == 3:
                 _, mnemonic, operand = line
             else:
                 mnemonic = line[1]
-                
+
+            # Check if the mnemonic represents a format 4 instruction
             is_format_4 = mnemonic.startswith('+')
             if is_format_4:
                 opcode = self.op_table.getOpcodeValue(mnemonic[1:])
                 format = 4
             else:
+                # Get opcode and format if mnemonic is in the opcode table
                 if mnemonic in self.op_table.optable:
                     opcode, format = self.op_table.getOpcode(mnemonic)
                 else:
                     raise ValueError(f"Error: Mnemonic '{mnemonic}' not found in opcode table.")
 
-            # Pass `pc` to calculate object code
-            # Add format to PC for the next instruction
-            pc = int(pc, 16) + int(format)  # Update PC for next instruction
-            object_code = self.calculate_object_code(opcode, format, operand, pc)
-            if object_code:
-                self.machine_code.append(object_code)
+            # Generate the object code for this line
+            try:
+                object_code = self.calculate_object_code(opcode, format, operand, pc)
+                if object_code:
+                    self.machine_code.append((pc, object_code))
+            except ValueError as e:
+                print(f"Warning: {e} at PC {pc:X}")
 
+            # Update the program counter for the next instruction
+            pc += format
+
+        # Calculate the program length
+        self.program_length = pc - self.start_address
         return self.machine_code
 
+    def write_object_code_file(self, filename):
+        with open(filename, 'w') as obj_file:
+            # Write the Header Record
+            header_record = f"H^{self.program_name[:6]:<6}^{self.start_address:06X}^{self.program_length:06X}\n"
+            obj_file.write(header_record)
 
+            # Write Text Records
+            text_record = ""
+            record_start_address = None
+            record_length = 0  # In bytes
+            
+            for (pc, code) in self.machine_code:
+                if record_start_address is None:
+                    record_start_address = pc
+
+                # Check if adding this code would exceed 30 bytes
+                if record_length + len(code) // 2 > 30:
+                    # Write the current text record to the file
+                    text_record = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
+                    obj_file.write(text_record)
+
+                    # Reset for the next text record
+                    text_record = ""
+                    record_start_address = pc
+                    record_length = 0
+
+                # Add the object code to the current text record
+                text_record += code
+                record_length += len(code) // 2  # Each 2 hex digits = 1 byte
+
+            # Write the final text record, if any
+            if text_record:
+                text_record = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
+                obj_file.write(text_record)
+
+            # Write the End Record
+            end_record = f"E^{self.start_address:06X}\n"
+            obj_file.write(end_record)
+
+    
     def calculate_object_code(self, opcode, format, operand, pc):
         object_code = ""
-        
+
         if format == 1:
+            # Format 1: opcode only
             object_code = f"{opcode:02X}"
-        
+
         elif format == 2:
+            # Format 2: opcode + register codes
             reg1, reg2 = operand.split(",")
             reg1_code = self.get_register_code(reg1)
             reg2_code = self.get_register_code(reg2)
             object_code = f"{opcode:02X}{reg1_code}{reg2_code}" 
         
         elif format in [3, 4]:
-            # Set up n, i, x, e flags based on addressing mode and format
+            # Set up n, i, x, e flags
             e = 1 if format == 4 else 0
-            n, i = (1, 0) if operand.startswith('@') else (0, 1) if operand.startswith('#') else (1, 1)
+            n, i = self.determine_addressing_flags(operand)
             x = 1 if ',X' in operand else 0
 
             # Determine the address
-            if operand.startswith('='):
-                literal = operand[1:] 
-                address = self.symbol_table.get_address(literal)
-            else:
-                label_address = self.get_label_address(operand, n, i, x)
-                
+            label_address = self.get_label_address(operand, n, i, x)
             disp, b, p = self.calculate_disp(label_address, format, self.basereg, pc)
-            
-            opcode_ni = (opcode | (n << 1) | i) & 0xFF  # Combine opcode with n and i flags
-            xbpe = (x << 3) | (b << 2) | (p << 1) | e  # Combine x, b, p, and e flags
-            
-            # Combine into the final object code
+
+            # Combine opcode and flags into final object code
+            opcode_ni = (opcode | (n << 1) | i) & 0xFF
+            xbpe = (x << 3) | (b << 2) | (p << 1) | e
             if format == 3:
                 object_code = f"{opcode_ni:02X}{xbpe:01X}{disp:03X}"
             elif format == 4:
@@ -79,33 +126,52 @@ class PassTwo:
         return object_code
 
     def calculate_disp(self, label_address, format, base_register, pc):
+        """Calculate displacement and addressing mode flags."""
         b, p = 0, 0
 
         if format == 4:
             return f"{int(label_address, 16):05X}", b, p
 
         disp = int(label_address, 16) - pc
-        
+
+        # PC-relative addressing
         if -2048 <= disp <= 2047:
-            disp_hex = disp & 0xFFF
             p = 1
-            return f"{disp_hex:03X}", b, p
+            return f"{disp & 0xFFF:03X}", b, p
+        # Base-relative addressing
         else:
             disp = int(label_address, 16) - int(base_register, 16)
             if 0 <= disp < 4096:
-                disp_hex = disp & 0xFFF
                 b = 1
-                return f"{disp_hex:03X}", b, p
+                return f"{disp & 0xFFF:03X}", b, p
             else:
                 raise ValueError(f"Displacement out of range for label address {label_address}")
 
     def get_label_address(self, operand, n, i, x):
-        if n == 1 and i == 1:  # Direct or simple addressing
+        """Retrieve the address of a label, handling different addressing modes."""
+        # Direct (simple) addressing
+        if n == 1 and i == 1:
             label_address = self.symbol_table.get_address(operand if x == 0 else operand[:-2])
-        else:  # Immediate or indirect addressing
+        # Immediate or indirect addressing
+        else:
             label_address = self.symbol_table.get_address(operand[1:])
+        
+        if label_address is None:
+            raise ValueError(f"Label '{operand}' not found in symbol table.")
         return label_address
 
+    def determine_addressing_flags(self, operand):
+        """Determine addressing flags n and i based on operand format."""
+        if operand.startswith('@'):  # Indirect addressing
+            return 1, 0
+        elif operand.startswith('#'):  # Immediate addressing
+            return 0, 1
+        else:  # Simple addressing
+            return 1, 1
+
     def get_register_code(self, register):
+        """Get the machine code for a register by its name."""
         register_codes = {"A": 0, "X": 1, "L": 2, "B": 3, "S": 4, "T": 5, "F": 6}
-        return f"{register_codes.get(register, 0):X}"
+        if register not in register_codes:
+            raise ValueError(f"Unknown register '{register}'")
+        return f"{register_codes[register]:X}"
