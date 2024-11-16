@@ -8,20 +8,14 @@ class PassOne:
         self.symbol_table = SymTable()
         self.op_table = OpTable()
         self.location_counter = 0
+        self.starting_address = 0
+        self.program_length = 0
         self.intermediate_code = [] #Store intermediate code for Pass Two
 
     def process_line(self, line): 
         #Next, process the line
         """Processes each line of the assembly code for Pass One."""
         #label, operation, operands = self.parse_line(line)
-        '''
-        #If there is a label
-        if label:
-            try:
-                self.symbol_table.add_symbol(label, self.location_counter)
-            except ValueError as e:
-                print(f"Error: {e}")
-                '''
         label = None
         operation = None
         operands = []
@@ -35,6 +29,12 @@ class PassOne:
             operands = line[1:]
         elif len(line) == 1:
             operation = line[0]
+        #Look for a START operation
+        if operation == 'START':
+            #Set the starting adress to the one found with start
+            self.starting_address = int(operands[0], 16)
+            self.location_counter = self.starting_address
+            return
         if label:
             try:
                 self.symbol_table.add_symbol(label, self.location_counter)
@@ -62,7 +62,7 @@ class PassOne:
         #Updating location counter based on instruction length
         instruction_length = self.get_instruction_length(operation,operands)
         self.location_counter += instruction_length
-
+        
 
         '''
         # Check for literals in operands
@@ -130,12 +130,16 @@ class PassOne:
             print('Error: File was not found.')
             return []
     
+    
+    
     def run(self, input_file):
         #Will process the input file and return the intermediate code for Pass Two
         #First, pre-process the file
         lines = self.pre_process(input_file)
         for line in lines:
             self.process_line(line)
+        
+        self.program_length = self.location_counter - self.starting_address #Final location counter - starting address
         return self.intermediate_code #Return the intermediate code for Pass Two
 
 p1 = PassOne()
