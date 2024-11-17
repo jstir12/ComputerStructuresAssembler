@@ -26,6 +26,7 @@ def main():
     # Prompt the user for the file path
     file_path = input("Please enter the path to the file you want to upload: ")
     codeLines = pre_process(file_path)
+    print(codeLines)
     
 
 if __name__ == "__main__":
