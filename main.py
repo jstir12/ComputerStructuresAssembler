@@ -1,32 +1,23 @@
 from OpTable import OpTable
 from SymTable import SymTable
-
-def pre_process(file_path):
-    # Try to open the file and read it line by line
-    try:
-        with open(file_path, 'r') as file:
-            print("Reading file line by line:")
-            lines = []
-            for line in file:
-                line = line.split(".")[0].strip()  # Remove comments and strip leading/trailing spaces
-                line = line.replace('\t', ' ')     # Replace tabs with a single space
-                if line != "":
-                    code = line.split(" ")
-                lines.append(code)
-            return lines   
-    except FileNotFoundError:
-        print("Error: The file was not found. Please check the path and try again.")
-        return []
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return []
-    
+from PassOne import PassOne
+from PassTwo import PassTwo
 
 def main():
+    machine_code = []
     # Prompt the user for the file path
     file_path = input("Please enter the path to the file you want to upload: ")
-    codeLines = pre_process(file_path)
-    print(codeLines)
+    # Create the OpTable and SymTable objects
+    op_table = OpTable()
+    sym_table = SymTable()
+    # Create the PassOne object
+    passOne = PassOne(op_table, sym_table)
+    intermediate_code, program_length, starting_address, program_name = passOne.run(file_path)
+    # Create the PassTwo object
+    passTwo = PassTwo(sym_table, intermediate_code, op_table, '0', program_name, starting_address, program_length, )
+    machine_code = passTwo.generate_machine_code()
+    
+    
     
 
 if __name__ == "__main__":
