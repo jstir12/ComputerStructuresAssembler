@@ -7,11 +7,10 @@ class PassTwo:
         self.basereg = basereg
         self.program_name = program_name
         self.start_address = int(start_address, 16)
-        self.program_length = program_length
+        self.program_length = int(program_length, 16)
         
     def generate_machine_code(self):
         for line in self.intermediate_code:
-            print(line)
             # Assume the first element in line is the location counter (PC)
             pc = int(line[0], 16)
 
@@ -41,11 +40,12 @@ class PassTwo:
             # Generate the object code for this line
             try:
                 # Update the program counter for the next instruction
-                print(format)
                 pc += format
                 object_code = self.calculate_object_code(opcode, format, operand, pc)
                 if object_code:
-                    self.machine_code.append(object_code)
+                    new_object_code = [f"{int(line[0],16):04X}", object_code]
+                    self.machine_code.append(new_object_code)
+                    continue
             except ValueError as e:
                 print(f"Warning: {e} at PC {pc:04X}")
         return self.machine_code
@@ -57,19 +57,20 @@ class PassTwo:
             obj_file.write(header_record)
 
             # Write Text Records
-            text_record = ""
-            record_start_address = None
-            record_length = 0  # In bytes
-            
-            for (pc, code) in self.machine_code:
+            text_record = ""  # Stores object code for the current text record
+            record_start_address = None  # Start address of the current text record
+            record_length = 0  # Length of the current text record in bytes
+
+            for pc, code in self.machine_code:
                 if record_start_address is None:
                     record_start_address = pc
 
                 # Check if adding this code would exceed 30 bytes
-                if record_length + len(code) // 2 > 30:
+                code_length = len(code) // 2  # Each 2 hex digits = 1 byte
+                if record_length + code_length > 30:
                     # Write the current text record to the file
-                    text_record = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
-                    obj_file.write(text_record)
+                    text_record_line = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
+                    obj_file.write(text_record_line)
 
                     # Reset for the next text record
                     text_record = ""
@@ -78,16 +79,18 @@ class PassTwo:
 
                 # Add the object code to the current text record
                 text_record += code
-                record_length += len(code) // 2  # Each 2 hex digits = 1 byte
+                record_length += code_length
 
             # Write the final text record, if any
             if text_record:
-                text_record = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
-                obj_file.write(text_record)
+                record_start_address = int(record_start_address,16)
+                text_record_line = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
+                obj_file.write(text_record_line)
 
             # Write the End Record
             end_record = f"E^{self.start_address:06X}\n"
             obj_file.write(end_record)
+
 
     def calculate_object_code(self, opcode, format, operand, pc):
         object_code = ""
@@ -103,6 +106,7 @@ class PassTwo:
             reg1, reg2 = operand.split(",")
             reg1_code = self.get_register_code(reg1)
             reg2_code = self.get_register_code(reg2)
+            reg1_code, reg2_code, opcode = int(reg1_code), int(reg2_code), int(opcode, 16)
             object_code = f"{opcode:02X}{reg1_code}{reg2_code}"
         
         elif format in [3, 4]:
@@ -115,6 +119,7 @@ class PassTwo:
             label_address = self.get_label_address(operand, n, i, x)
             if i == 0 and n == 0 or i == 1 and n == 1:
                 disp, b, p = self.calculate_disp(label_address, format, self.basereg, pc)
+                disp = int(disp)
             else:
                 disp = int(label_address, 16)
                 b, p = 0, 0
@@ -142,7 +147,7 @@ class PassTwo:
         # PC-relative addressing
         if -2048 <= disp <= 2047:
             p = 1
-            return f"{disp & 0xFFF:03X}", b, p
+            return f"{disp & 0xFFF}", b, p
         # Base-relative addressing
         else:
             disp = int(label_address, 16) - int(base_register, 16)

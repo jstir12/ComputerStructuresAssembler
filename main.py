@@ -16,6 +16,8 @@ def main():
     # Create the PassTwo object
     passTwo = PassTwo(sym_table, intermediate_code, op_table, '0', program_name, starting_address, program_length, )
     machine_code = passTwo.generate_machine_code()
+    # Write the machine code to a file
+    passTwo.write_object_code_file('object_code.txt')
     
     
     

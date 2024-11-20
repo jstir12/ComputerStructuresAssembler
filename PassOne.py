@@ -13,7 +13,6 @@ class PassOne:
         #Next, process the line
         """Processes each line of the assembly code for Pass One."""
         #label, operation, operands = self.parse_line(line)
-        print(line)
         label = None
         operation = None
         operands = None
@@ -53,6 +52,10 @@ class PassOne:
 
         #Store the intermediate code for Pass Two
         hex_location = f'{self.location_counter:04X}' #Convert location counter to hex string
+        if operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'END' or operation == 'BYTE' or operation == 'WORD' or operation == 'BASE' or operation == 'NOBASE':
+            instruction_length = self.get_instruction_length(operation,operands)
+            self.location_counter += instruction_length
+            return
         self.intermediate_code.append([hex_location, label, operation, operands])
 
         #Updating location counter based on instruction length
