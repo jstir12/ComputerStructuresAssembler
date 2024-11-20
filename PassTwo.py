@@ -69,6 +69,7 @@ class PassTwo:
                 code_length = len(code) // 2  # Each 2 hex digits = 1 byte
                 if record_length + code_length > 30:
                     # Write the current text record to the file
+                    record_start_address = int(record_start_address,16)
                     text_record_line = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
                     obj_file.write(text_record_line)
 
