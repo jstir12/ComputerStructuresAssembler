@@ -52,7 +52,10 @@ class PassOne:
 
         #Store the intermediate code for Pass Two
         hex_location = f'{self.location_counter:04X}' #Convert location counter to hex string
-        if operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'END' or operation == 'BYTE' or operation == 'WORD' or operation == 'BASE' or operation == 'NOBASE':
+        if operation == "LDB":
+            # Push Value of base register to symbol table
+            self.symbol_table.add_symbol("BASE", operands)
+        elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'END' or operation == 'WORD' or operation == 'BASE' or operation == 'NOBASE':
             instruction_length = self.get_instruction_length(operation,operands)
             self.location_counter += instruction_length
             return
@@ -76,23 +79,7 @@ class PassOne:
         if operation == 'END':
             self.literal_table.assign_addresses(self.location_counter)
          #I don't think we need to worry about literals yet
-
-    def parse_line(self, line):
-        """Basic line parsing to extract label, operation, and operands."""
-        parts = line.split()
-        label = None
-        operation = None
-        operands = []
-        #See if there is even a label to begin with 
-        if parts and not parts[0].startswith(' ','\t'):
-            label = parts[0] #Label exists and the first thing in the line is the label
-            parts = parts[1:] #rest of the line are used as the operation and operands
-        if parts: #There are no labels
-            operation = parts[0] #First thing in the line is the operation
-            operands = parts[1:]
-        
-        return label, operation, operands
-'''#Got rid of parse_line method since we are already splitting the line in process_line
+        '''
 
     def get_instruction_length(self, operation,operands):
         """Determine the length of an instruction based on its operation."""
@@ -105,9 +92,26 @@ class PassOne:
             return 4 * int(operands)
         elif operation == 'RESQ':
             return 8 * int(operands)
+        elif operation == 'WORD':
+            return 3
+        elif operation == 'BYTE':
+            if operands.startswith('X'):
+                return (len(operands) - 3) // 2
+            elif operands.startswith('C'):
+                return len(operands) - 3
+        elif operation == 'END':
+            return 0
+        elif operation == 'BASE':
+            return 0
+        elif operation == 'NOBASE':
+            return 0
         
         #Referring to the opTable class for the format type
-        opcode_format = self.op_table.getFormat(operation)
+        if operation.startswith('+'):
+            opcode_format = 4
+        else:
+            opcode_format = self.op_table.getFormat(operation)
+            
         if opcode_format: #If the format is found
             return int(opcode_format)
         else:
@@ -123,7 +127,7 @@ class PassOne:
                     line = line.replace('\t',' ') #Replace tabs with spaces
                     if line != '':
                         code = line.split(' ')
-                    lines.append(code) 
+                        lines.append(code) 
             return lines
         except FileNotFoundError:
             print('Error: File was not found.')
