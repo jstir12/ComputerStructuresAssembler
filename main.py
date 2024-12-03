@@ -18,7 +18,7 @@ def main():
     machine_code = passTwo.generate_machine_code()
     # Write the machine code to a file
     passTwo.write_object_code_file('object_code.txt')
-    
+    print("Machine code written to object_code.txt")
     
     
 

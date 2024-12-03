@@ -6,14 +6,21 @@ class PassTwo:
         self.op_table = op_table
         self.basereg = basereg
         self.program_name = program_name
+        self.functions = []
         self.start_address = int(start_address, 16)
         self.program_length = int(program_length, 16)
         
     def generate_machine_code(self):
+        # Set Base register
+        if "BASE" in self.symbol_table.symbols:
+            self.basereg = self.symbol_table.symbols["BASE"]
+            if not self.basereg.isdigit():
+                self.basereg = self.symbol_table.get_address(self.basereg[1:])
+                
         for line in self.intermediate_code:
             # Assume the first element in line is the location counter (PC)
             pc = int(line[0], 16)
-
+            is_function = False
             # Parse line for label, mnemonic, and operand
             label, mnemonic, operand = (None, None, None)
             if len(line) == 4:
@@ -22,7 +29,25 @@ class PassTwo:
                 _, mnemonic, operand = line
             else:
                 mnemonic = line[1]
-
+            
+            # Need to keep track of subroutines
+            if mnemonic == 'JSUB' or mnemonic[1:] == "JSUB":
+                self.functions.append(operand) 
+            if label in self.functions:
+                is_function = True
+            if mnemonic == "RSUB" or mnemonic == "WORD" or mnemonic == "BYTE":
+                if mnemonic == 'RSUB':
+                    object_code = "4F0000"
+                elif mnemonic == 'WORD':
+                    object_code = f"{int(operand):06X}"
+                elif mnemonic == 'BYTE':
+                    if operand.startswith('X'):
+                        object_code = operand[2:-1]
+                    elif operand.startswith('C'):
+                        object_code = ''.join([f"{ord(char):02X}" for char in operand[2:-1]])
+                        
+                self.machine_code.append([None,f"{int(line[0],16):04X}", object_code])
+                continue
             # Check if the mnemonic represents a format 4 instruction
             is_format_4 = mnemonic.startswith('+')
             if is_format_4:
@@ -43,7 +68,10 @@ class PassTwo:
                 pc += format
                 object_code = self.calculate_object_code(opcode, format, operand, pc)
                 if object_code:
-                    new_object_code = [f"{int(line[0],16):04X}", object_code]
+                    if is_function:
+                        new_object_code = [label, f"{int(line[0],16):04X}", object_code]
+                    else:
+                        new_object_code = [None, f"{int(line[0],16):04X}", object_code]
                     self.machine_code.append(new_object_code)
                     continue
             except ValueError as e:
@@ -55,20 +83,22 @@ class PassTwo:
             # Write the Header Record
             header_record = f"H^{self.program_name[:6]:<6}^{self.start_address:06X}^{self.program_length:06X}\n"
             obj_file.write(header_record)
-
+            functions = 0
             # Write Text Records
             text_record = ""  # Stores object code for the current text record
             record_start_address = None  # Start address of the current text record
             record_length = 0  # Length of the current text record in bytes
 
-            for pc, code in self.machine_code:
+            for function, pc, code in self.machine_code:
                 if record_start_address is None:
                     record_start_address = pc
 
                 # Check if adding this code would exceed 30 bytes
                 code_length = len(code) // 2  # Each 2 hex digits = 1 byte
-                if record_length + code_length > 30:
+                if record_length + code_length > 30 or function is not None and functions == 0:
                     # Write the current text record to the file
+                    if function is not None:
+                        functions += 1
                     record_start_address = int(record_start_address,16)
                     text_record_line = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
                     obj_file.write(text_record_line)
@@ -77,7 +107,6 @@ class PassTwo:
                     text_record = ""
                     record_start_address = pc
                     record_length = 0
-
                 # Add the object code to the current text record
                 text_record += code
                 record_length += code_length
@@ -103,10 +132,12 @@ class PassTwo:
         elif format == 2:
             # Format 2: opcode + register codes
             if ',' not in operand:
-                raise ValueError(f"Error: Format 2 requires two registers, but got '{operand}'")
-            reg1, reg2 = operand.split(",")
-            reg1_code = self.get_register_code(reg1)
-            reg2_code = self.get_register_code(reg2)
+                reg1_code = self.get_register_code(operand)
+                reg2_code = "0"
+            else:
+                reg1, reg2 = operand.split(",")
+                reg1_code = self.get_register_code(reg1)
+                reg2_code = self.get_register_code(reg2)
             reg1_code, reg2_code, opcode = int(reg1_code), int(reg2_code), int(opcode, 16)
             object_code = f"{opcode:02X}{reg1_code}{reg2_code}"
         
@@ -118,7 +149,7 @@ class PassTwo:
 
             # Determine the address
             label_address = self.get_label_address(operand, n, i, x)
-            if i == 0 and n == 0 or i == 1 and n == 1:
+            if i == 0 and n == 0 or i == 0 and n == 1 or i == 1 and n == 1 or i == 1 and not operand[1:].isdigit():
                 disp, b, p = self.calculate_disp(label_address, format, self.basereg, pc)
                 disp = int(disp)
             else:
@@ -141,7 +172,7 @@ class PassTwo:
         b, p = 0, 0
 
         if format == 4:
-            return f"{int(label_address, 16):05X}", b, p
+            return f"{int(label_address, 16)}", b, p
 
         disp = int(label_address, 16) - pc
 
