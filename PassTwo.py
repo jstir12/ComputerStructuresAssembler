@@ -3,13 +3,14 @@ class PassTwo:
         self.symbol_table = symbol_table
         self.intermediate_code = intermediate_code
         self.machine_code = []
+        self.modifications = []  # To track modification records
         self.op_table = op_table
         self.basereg = basereg
         self.program_name = program_name
         self.functions = []
         self.start_address = int(start_address, 16)
         self.program_length = int(program_length, 16)
-        
+
     def generate_machine_code(self):
         # Set Base register
         if "BASE" in self.symbol_table.symbols:
@@ -35,24 +36,26 @@ class PassTwo:
                 self.functions.append(operand) 
             if label in self.functions:
                 is_function = True
-            if mnemonic == "RSUB" or mnemonic == "WORD" or mnemonic == "BYTE":
+            if mnemonic == "RSUB" or mnemonic == "WORD" or mnemonic == "BYTE" or label == '*':
                 if mnemonic == 'RSUB':
                     object_code = "4F0000"
                 elif mnemonic == 'WORD':
                     object_code = f"{int(operand):06X}"
                 elif mnemonic == 'BYTE':
-                    if operand.startswith('X'):
-                        object_code = operand[2:-1]
-                    elif operand.startswith('C'):
-                        object_code = ''.join([f"{ord(char):02X}" for char in operand[2:-1]])
-                        
+                    object_code = self.get_X_C(operand)
+                elif label == '*':
+                    object_code = self.get_X_C(mnemonic[1:])
+                    
                 self.machine_code.append([None,f"{int(line[0],16):04X}", object_code])
                 continue
+            
             # Check if the mnemonic represents a format 4 instruction
             is_format_4 = mnemonic.startswith('+')
             if is_format_4:
                 opcode = self.op_table.getOpcodeValue(mnemonic[1:])
                 format = 4
+                if not operand.startswith('#'):
+                    self.modifications.append([f"{pc+1:06X}", f"{5:02X}"])
             else:
                 # Get opcode and format if mnemonic is in the opcode table
                 if mnemonic in self.op_table.optable:
@@ -117,6 +120,9 @@ class PassTwo:
                 text_record_line = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
                 obj_file.write(text_record_line)
 
+            for address, value in self.modifications:
+                mod_record = f"M^{address}^{value}\n"
+                obj_file.write(mod_record)
             # Write the End Record
             end_record = f"E^{self.start_address:06X}\n"
             obj_file.write(end_record)
@@ -221,3 +227,10 @@ class PassTwo:
         if register not in register_codes:
             raise ValueError(f"Unknown register '{register}'")
         return f"{register_codes[register]:X}"
+    
+    # Calculate object code for X and C values
+    def get_X_C(self, value):
+        if value.startswith('X'):
+            object_code = value[2:-1]
+        elif value.startswith('C'):
+            object_code = ''.join([f"{ord(char):02X}" for char in value[2:-1]])

@@ -1,8 +1,10 @@
+import re
 class PassOne:
     def __init__(self, OpTable, SymTable):
         #self.literal_table = LiteralTable()
         self.symbol_table = SymTable
         self.op_table = OpTable
+        self.literal_table = {}
         self.location_counter = 0
         self.starting_address = 0
         self.program_length = 0
@@ -16,6 +18,7 @@ class PassOne:
         label = None
         operation = None
         operands = None
+        is_literal = False
         #Since the codes are stored in inside, arrays, we can use their length to determine labels, operations, and operands
         if len(line) == 3:
             label = line[0]
@@ -33,53 +36,46 @@ class PassOne:
             self.location_counter = self.starting_address
             self.program_name = label
             return
+        elif operation == 'LTORG' or operation == 'END': #Check for LTORG or END
+            #Assign the literals to the location counter
+            for key in self.literal_table.keys():
+                if self.literal_table[key][0] == None:
+                    self.literal_table[key][0] = f'{self.location_counter:04X}'
+                    hex_location = f'{self.location_counter:04X}' #Convert location counter to hex string
+                    self.intermediate_code.append([hex_location, '*', key, ''])
+                    self.location_counter += self.calcualte_X_C(key[1:])
+            return
         if label:
             try:
+                if operation == 'EQU':
+                    if operands.startswith('*'):
+                        self.symbol_table.add_symbol(label, f'{self.location_counter:04X}')
+                    else:
+                        self.symbol_table.add_symbol(label, self.calculate_EQU(operands))
+                    return          
                 self.symbol_table.add_symbol(label, f'{self.location_counter:04X}')
             except ValueError as e:
                 print(f"Error: {e}")
-        """
-        #Handling immediate addressing
-        if operands.startswith('#'): #'#' indicates immediate addressing
-            immediate_value = operands[1:]
-            if not immediate_value.isdigit(): #Check if it is a digit
-                #Check if it already exists in the symbol table
-                if not self.symbol_table.get_address(immediate_value):
-                    #If it doesn't exist, add it to the symbol table
-                    self.symbol_table.add_symbol(immediate_value, None)
-        """
-        
-
+        # Check for literals
+        if operands:
+            if operands.startswith('=C') or operands.startswith('=X'):
+                self.literal_table[operands] = [None]
+            
         #Store the intermediate code for Pass Two
         hex_location = f'{self.location_counter:04X}' #Convert location counter to hex string
         if operation == "LDB":
             # Push Value of base register to symbol table
             self.symbol_table.add_symbol("BASE", operands)
-        elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'END' or operation == 'WORD' or operation == 'BASE' or operation == 'NOBASE':
+        elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'WORD' or operation == 'BASE' or operation == 'NOBASE':
             instruction_length = self.get_instruction_length(operation,operands)
             self.location_counter += instruction_length
             return
         self.intermediate_code.append([hex_location, label, operation, operands])
 
-        #Updating location counter based on instruction length
+        #Updating location counter based on instruction length        
         instruction_length = self.get_instruction_length(operation,operands)
         self.location_counter += instruction_length
-        
-
-        '''
-        # Check for literals in operands
-        for operand in operands:
-            if operand.startswith('='):
-                self.literal_table.add_literal(operand)
-
-        # Update location counter based on instruction length
-        self.location_counter += self.get_instruction_length(operation)
-
-        # At the end of the program, assign addresses to literals
-        if operation == 'END':
-            self.literal_table.assign_addresses(self.location_counter)
-         #I don't think we need to worry about literals yet
-        '''
+                
 
     def get_instruction_length(self, operation,operands):
         """Determine the length of an instruction based on its operation."""
@@ -95,16 +91,14 @@ class PassOne:
         elif operation == 'WORD':
             return 3
         elif operation == 'BYTE':
-            if operands.startswith('X'):
-                return (len(operands) - 3) // 2
-            elif operands.startswith('C'):
-                return len(operands) - 3
-        elif operation == 'END':
-            return 0
+            return self.calcualte_X_C(operands)
         elif operation == 'BASE':
             return 0
         elif operation == 'NOBASE':
             return 0
+        elif operation == 'EQU':
+            if operands.startswith('*'):
+                return 0
         
         #Referring to the opTable class for the format type
         if operation.startswith('+'):
@@ -133,8 +127,32 @@ class PassOne:
             print('Error: File was not found.')
             return []
     
+    def calcualte_X_C(self, operands):
+        #Calculate the length of the string
+        if operands.startswith('X'):
+            return (len(operands) - 3) // 2
+        elif operands.startswith('C'):
+            return len(operands) - 3
+        return 0
     
-    
+    def calculate_EQU(self, operands):
+        string_pattern = r"([A-Za-z0-9]+)([+\-*/])([A-Za-z0-9]+)"
+        match = re.match(string_pattern, operands)
+        operations = {
+            '+': lambda x, y: x + y,
+            '-': lambda x, y: x - y,
+            '*': lambda x, y: x * y,
+            '/': lambda x, y: x / y
+        }
+        if match:
+            left_operand = self.symbol_table.get_address(match.group(1))
+            operator = match.group(2)
+            right_operand = self.symbol_table.get_address(match.group(3))
+            
+            
+            result = operations[operator](int(left_operand, 16), int(right_operand, 16))
+            return f'{result:04X}'
+        
     def run(self, input_file):
         #Will process the input file and return the intermediate code for Pass Two
         #First, pre-process the file
