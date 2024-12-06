@@ -10,6 +10,7 @@ class PassOne:
         self.program_length = 0
         self.intermediate_code = [] #Store intermediate code for Pass Two
         self.program_name = 'Basic' #Default program name
+        self.modification_records = [] #Store modification records for Pass Two
 
     def process_line(self, line): 
         #Next, process the line
@@ -51,7 +52,22 @@ class PassOne:
                     if operands.startswith('*'):
                         self.symbol_table.add_symbol(label, f'{self.location_counter:04X}')
                     else:
-                        self.symbol_table.add_symbol(label, self.calculate_EQU(operands))
+                        value ,parts = self.calculate_EQU(operands)
+                        self.symbol_table.add_symbol(label, value)
+                        groups = parts.groups()
+                        for i, part in enumerate(groups):  # Enumerate through groups
+                            if part in {"+", "-", "*", "/"}:
+                                continue  # Skip operators
+
+                            # Handle the first part differently
+                            if i == 0:
+                                self.modification_records.append(
+                                    [f'{self.location_counter:06X}', f'{len(label):02X}', "+" + part]
+                                )
+                            else:
+                                self.modification_records.append(
+                                    [f'{self.location_counter:06X}', f'{len(label):02X}', groups[i-1] + part])
+                            
                     return          
                 self.symbol_table.add_symbol(label, f'{self.location_counter:04X}')
             except ValueError as e:
@@ -151,7 +167,7 @@ class PassOne:
             
             
             result = operations[operator](int(left_operand, 16), int(right_operand, 16))
-            return f'{result:04X}'
+            return f'{result:04X}', match
         
     def run(self, input_file):
         #Will process the input file and return the intermediate code for Pass Two
@@ -161,4 +177,4 @@ class PassOne:
             self.process_line(line)
         print (self.symbol_table.symbols)
         self.program_length = self.location_counter - self.starting_address #Final location counter - starting address
-        return self.intermediate_code, f'{self.program_length:04X}', f'{self.starting_address:04X}', self.program_name #Return the intermediate code for Pass Two
+        return self.intermediate_code, f'{self.program_length:04X}', f'{self.starting_address:04X}', self.program_name, self.literal_table, self.modification_records #Return the intermediate code for Pass Tw

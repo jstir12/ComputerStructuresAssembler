@@ -12,9 +12,9 @@ def main():
     sym_table = SymTable()
     # Create the PassOne object
     passOne = PassOne(op_table, sym_table)
-    intermediate_code, program_length, starting_address, program_name = passOne.run(file_path)
+    intermediate_code, program_length, starting_address, program_name, literal_table, modification_records = passOne.run(file_path)
     # Create the PassTwo object
-    passTwo = PassTwo(sym_table, intermediate_code, op_table, '0', program_name, starting_address, program_length, )
+    passTwo = PassTwo(sym_table, intermediate_code, op_table, '0', program_name, starting_address, program_length, literal_table, modification_records)
     machine_code = passTwo.generate_machine_code()
     # Write the machine code to a file
     passTwo.write_object_code_file('object_code.txt')

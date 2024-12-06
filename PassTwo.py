@@ -1,5 +1,5 @@
 class PassTwo:
-    def __init__(self, symbol_table, intermediate_code, op_table, basereg, program_name, start_address, program_length):
+    def __init__(self, symbol_table, intermediate_code, op_table, basereg, program_name, start_address, program_length, literal_table, modification_records):
         self.symbol_table = symbol_table
         self.intermediate_code = intermediate_code
         self.machine_code = []
@@ -10,6 +10,8 @@ class PassTwo:
         self.functions = []
         self.start_address = int(start_address, 16)
         self.program_length = int(program_length, 16)
+        self.literal_table = literal_table
+        self.modification_records = modification_records
 
     def generate_machine_code(self):
         # Set Base register
@@ -123,6 +125,11 @@ class PassTwo:
             for address, value in self.modifications:
                 mod_record = f"M^{address}^{value}\n"
                 obj_file.write(mod_record)
+            for address, length, symbol in self.modification_records:
+                mod_record = f"M^{address}^{length}^{symbol}\n"
+                obj_file.write(mod_record) 
+            
+            
             # Write the End Record
             end_record = f"E^{self.start_address:06X}\n"
             obj_file.write(end_record)
@@ -199,7 +206,11 @@ class PassTwo:
         """Retrieve the address of a label, handling different addressing modes."""
         # Direct (simple) addressing
         if n == 1 and i == 1:
-            label_address = self.symbol_table.get_address(operand if x == 0 else operand[:-2])
+            if operand.startswith('='):
+                label_address = self.literal_table[operand]
+                label_address = label_address[0]
+            else:
+                label_address = self.symbol_table.get_address(operand if x == 0 else operand[:-2])
         # Immediate or indirect addressing
         elif i == 1 and n == 0 and operand[1:].isdigit():
             label_address = f"{int(operand[1:]):04X}"
@@ -234,3 +245,4 @@ class PassTwo:
             object_code = value[2:-1]
         elif value.startswith('C'):
             object_code = ''.join([f"{ord(char):02X}" for char in value[2:-1]])
+        return object_code
