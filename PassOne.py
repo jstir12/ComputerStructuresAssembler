@@ -1,11 +1,17 @@
 import re
+
+from OpTable import OpTable
+from SymTable import SymTable
+
 class PassOne:
     def __init__(self, OpTable, SymTable):
         #self.literal_table = LiteralTable()
         self.symbol_table = SymTable
         self.op_table = OpTable
         self.literal_table = {}
-        self.location_counter = 0
+        self.location_counters = {"Default": 0} #Store location counters for different blocks
+        self.current_block = "Default" #Current block: Default
+        #self.location_counter = 0
         self.starting_address = 0
         self.program_length = 0
         self.intermediate_code = [] #Store intermediate code for Pass Two
@@ -34,23 +40,34 @@ class PassOne:
         if operation == 'START':
             #Set the starting adress to the one found with start
             self.starting_address = int(operands[0], 16)
-            self.location_counter = self.starting_address
+            self.location_counters['Default'] = self.starting_address
+            self.current_block = 'Default'
             self.program_name = label
             return
+        #Check for USE directive. This indicates program switching
+        if operation == 'USE':
+            new_block = operands or 'Default'
+            self.location_counters[self.current_block] = self.location_counters.get(self.current_block)#Saving the current location counter
+            self.current_block = new_block 
+            #Initialize the location counter for the new block (If neeeded)
+            if new_block not in self.location_counters:
+                self.location_counters[new_block] = 0
+                return
+
         elif operation == 'LTORG' or operation == 'END': #Check for LTORG or END
             #Assign the literals to the location counter
             for key in self.literal_table.keys():
                 if self.literal_table[key][0] == None:
-                    self.literal_table[key][0] = f'{self.location_counter:04X}'
-                    hex_location = f'{self.location_counter:04X}' #Convert location counter to hex string
+                    self.literal_table[key][0] = f'{self.location_counters[self.current_block]:04X}'
+                    hex_location = f'{self.location_counters[self.current_block]:04X}' #Convert location counter to hex string
                     self.intermediate_code.append([hex_location, '*', key, ''])
-                    self.location_counter += self.calcualte_X_C(key[1:])
+                    self.location_counters[self.current_block] += self.calcualte_X_C(key[1:])
             return
         if label:
             try:
                 if operation == 'EQU':
                     if operands.startswith('*'):
-                        self.symbol_table.add_symbol(label, f'{self.location_counter:04X}')
+                        self.symbol_table.add_symbol(label, f'{self.location_counters[self.current_block]:04X}')
                     else:
                         value ,parts = self.calculate_EQU(operands)
                         self.symbol_table.add_symbol(label, value)
@@ -62,14 +79,14 @@ class PassOne:
                             # Handle the first part differently
                             if i == 0:
                                 self.modification_records.append(
-                                    [f'{self.location_counter:06X}', f'{len(label):02X}', "+" + part]
+                                    [f'{self.location_counters[self.current_block]:06X}', f'{len(label):02X}', "+" + part]
                                 )
                             else:
                                 self.modification_records.append(
-                                    [f'{self.location_counter:06X}', f'{len(label):02X}', groups[i-1] + part])
+                                    [f'{self.location_counters[self.current_block]:06X}', f'{len(label):02X}', groups[i-1] + part])
                             
                     return          
-                self.symbol_table.add_symbol(label, f'{self.location_counter:04X}')
+                self.symbol_table.add_symbol(label, f'{self.location_counters[self.current_block]:04X}')
             except ValueError as e:
                 print(f"Error: {e}")
         # Check for literals
@@ -78,19 +95,19 @@ class PassOne:
                 self.literal_table[operands] = [None]
             
         #Store the intermediate code for Pass Two
-        hex_location = f'{self.location_counter:04X}' #Convert location counter to hex string
+        hex_location = f'{self.location_counters[self.current_block]:04X}' #Convert location counter to hex string
         if operation == "LDB":
             # Push Value of base register to symbol table
             self.symbol_table.add_symbol("BASE", operands)
         elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'WORD' or operation == 'BASE' or operation == 'NOBASE':
             instruction_length = self.get_instruction_length(operation,operands)
-            self.location_counter += instruction_length
+            self.location_counters[self.current_block] += instruction_length
             return
         self.intermediate_code.append([hex_location, label, operation, operands])
 
         #Updating location counter based on instruction length        
         instruction_length = self.get_instruction_length(operation,operands)
-        self.location_counter += instruction_length
+        self.location_counters[self.current_block] += instruction_length
                 
 
     def get_instruction_length(self, operation,operands):
@@ -176,5 +193,12 @@ class PassOne:
         for line in lines:
             self.process_line(line)
         print (self.symbol_table.symbols)
-        self.program_length = self.location_counter - self.starting_address #Final location counter - starting address
+        self.program_length = self.location_counters[self.current_block] - self.starting_address #Final location counter - starting address
         return self.intermediate_code, f'{self.program_length:04X}', f'{self.starting_address:04X}', self.program_name, self.literal_table, self.modification_records #Return the intermediate code for Pass Tw
+
+op_table = OpTable()
+sym_table = SymTable()
+ # Create the PassOne object
+passOne = PassOne(op_table, sym_table)
+
+print(passOne.run('Assembly/prog_blocks.txt'))
