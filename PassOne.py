@@ -178,3 +178,119 @@ class PassOne:
         print (self.symbol_table.symbols)
         self.program_length = self.location_counter - self.starting_address #Final location counter - starting address
         return self.intermediate_code, f'{self.program_length:04X}', f'{self.starting_address:04X}', self.program_name, self.literal_table, self.modification_records #Return the intermediate code for Pass Tw
+from Macros import MacroTable
+
+class PassOne:
+    def __init__(self):
+        self.macro_table = MacroTable()  # Initialize the MacroTable
+        self.symbol_table = {}
+        self.code = []  # Store the code for the next pass
+
+    def process_line(self, line):
+        # Check if the line defines a macro
+        if line.startswith("MACRO"):
+            # Example: MACRO MACRO_NAME param1, param2
+            macro_name = line.split()[1]
+            params = line.split()[2].split(",")  # Assuming parameter format is "param1,param2"
+            body = []
+
+            # Collect the body of the macro
+            while True:
+                line = self.get_next_line()  # Read next line
+                if line == "ENDMACRO":
+                    break
+                body.append(line)
+
+            # Add macro to the macro table
+            self.macro_table.define_macro(macro_name, params, body)
+            return None  # Don't process this line further, macro is defined
+
+        # Otherwise, expand macros if necessary
+        expanded_code = self.macro_table.expand_macros([line])
+        if expanded_code:
+            return expanded_code[0]  # Return the expanded line
+        return line  # Otherwise, return the original line
+
+    def process_code(self, code):
+        for line in code:
+            # First, handle macro expansion
+            expanded_line = self.process_line(line)
+            
+            if expanded_line is None:
+                continue  # Skip macro definition lines
+            
+            # Now process the expanded or original line as needed
+            # Here you would typically process labels and generate the symbol table
+            self.process_labels_and_symbols(expanded_line)
+    
+    def process_labels_and_symbols(self, line):
+        # Handle labels and add them to the symbol table
+        pass
+from ControlSection import ControlSection
+
+class PassOne:
+    def __init__(self):
+        self.control_sections = {}  # Dictionary to store control sections by name
+        self.global_symbol_table = {}  # Global symbol table to store all symbols
+        self.current_cs = None  # Current control section being processed
+        self.current_address = 0  # Current memory address for the code
+        self.code = []  # Store the code for the next pass
+
+    def process_line(self, line):
+        # Skip empty lines or comments
+        if not line.strip() or line.startswith(';'):  # Assuming semicolon is used for comments
+            return None
+        
+        # Check if the line defines a new control section (e.g., a section header)
+        if line.startswith("CSECT"):
+            cs_name = line.split()[1]  # Extract the name of the control section
+            
+            # Create a new control section object if it's not already defined
+            if cs_name not in self.control_sections:
+                new_cs = ControlSection(cs_name)
+                new_cs.set_start_address(self.current_address)  # Set the start address
+                self.control_sections[cs_name] = new_cs
+                self.current_cs = new_cs  # Set the current control section
+            
+            return None  # Skip further processing, as this is a control section header
+        
+        # If the line defines a symbol, add it to the current control section's symbol table
+        if ":" in line:  # This indicates a label (symbol definition)
+            label = line.split(":")[0]
+            if self.current_cs:
+                self.current_cs.add_symbol(label, self.current_address)
+            self.global_symbol_table[label] = self.current_address  # Add to global symbol table
+            
+        # If the line references an external symbol, add it to the external references
+        if "EXTERNAL" in line:
+            external_symbol = line.split()[1]
+            if self.current_cs:
+                self.current_cs.add_external_reference(external_symbol)
+            
+        # Process the instruction (increment address, process symbols, etc.)
+        if self.current_cs:
+            self.current_address += 4  # Assuming each instruction occupies 4 bytes
+        
+        return line  # Return the processed line
+    
+    def process_code(self, code):
+        for line in code:
+            # Process each line in the assembly code
+            expanded_line = self.process_line(line)
+            
+            if expanded_line is None:
+                continue  # Skip the control section header line
+            
+            # Here, you would typically handle other parsing tasks (like instruction decoding)
+            # But since this is Pass One, we focus on control sections and symbols.
+
+    def finalize_control_sections(self):
+        """ Finalize the control sections by setting their lengths. """
+        for cs_name, cs in self.control_sections.items():
+            # The length is calculated based on the current memory address
+            cs.set_length(self.current_address - cs.start_address)
+
+    def get_global_symbol_table(self):
+        """ Returns the global symbol table that includes all symbols from all control sections. """
+        return self.global_symbol_table
+   
