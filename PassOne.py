@@ -63,16 +63,18 @@ class PassOne:
         #Check for USE directive. This indicates program switching
         if operation == 'USE':
             self.cs.update_location_counter(location_counter) #Update the location counter for the new block
-            self.cs.set_program_block(operands or 'Default')
+            self.cs.set_program_block(operands[0] if operands else 'Default')
             #Initialize the location counter for the new block (If neeeded)
             if self.cs.get_location_counter() == None:
                 self.cs.update_location_counter(0)
-                return
+            return
+            
 
         elif operation == 'LTORG' or operation == 'END': #Check for LTORG or END
             #Assign the literals to the location counter
             for key in self.cs.get_literal_keys():
                 if self.cs.get_literal_value(key) == None:
+                    location_counter = self.cs.get_location_counter()
                     self.cs.add_literal(key, f'{location_counter:04X}')
                     hex_location = f'{location_counter:04X}' #Convert location counter to hex string
                     self.cs.update_intermediate_code([hex_location, '*', key, ''])

@@ -96,7 +96,7 @@ class ControlSection:
     
     def get_location_counter(self):
         """Retrieves the location counter for a block."""
-        return self.location_counters.get(self.program_block, 0)
+        return self.location_counters.get(self.program_block, None)
     
     def update_current_block(self, value):
         """Updates the current block."""
