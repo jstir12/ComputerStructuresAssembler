@@ -220,8 +220,10 @@ class PassOne:
 
 """op_table = OpTable()
 sym_table = SymTable()
- # Create the PassOne object
+# Create the PassOne object
 passOne = PassOne(op_table, sym_table)
+
+#print(passOne.run('Assembly/basic.txt'))
 
 print(passOne.run('Assembly/prog_blocks.txt'))
 from Macros import MacroTable
