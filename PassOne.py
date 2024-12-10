@@ -2,21 +2,25 @@ import re
 
 from OpTable import OpTable
 from SymTable import SymTable
+from ControlSection import ControlSection
 
 class PassOne:
-    def __init__(self, OpTable, SymTable):
+    def __init__(self, OpTable):
         #self.literal_table = LiteralTable()
-        self.symbol_table = SymTable
+        #self.symbol_table = SymTable
         self.op_table = OpTable
-        self.literal_table = {}
-        self.location_counters = {"Default": 0} #Store location counters for different blocks
-        self.current_block = "Default" #Current block: Default
+        #self.literal_table = {}
+        #self.location_counters = {"Default": 0} #Store location counters for different blocks
+        #self.current_block = "Default" #Current block: Default
         #self.location_counter = 0
-        self.starting_address = 0
-        self.program_length = 0
-        self.intermediate_code = [] #Store intermediate code for Pass Two
-        self.program_name = 'Basic' #Default program name
-        self.modification_records = [] #Store modification records for Pass Two
+        #self.starting_address = 0
+        #self.program_length = 0
+        #self.intermediate_code = [] #Store intermediate code for Pass Two
+        #self.program_name = 'Basic' #Default program name
+        #self.modification_records = [] #Store modification records for Pass Two
+        self.controlSections = {}
+        self.cs = None
+        self.global_starting_address = 0
 
     def process_line(self, line): 
         #Next, process the line
@@ -24,53 +28,64 @@ class PassOne:
         #label, operation, operands = self.parse_line(line)
         label = None
         operation = None
-        operands = None
-        is_literal = False
+        operands = []
+        
         #Since the codes are stored in inside, arrays, we can use their length to determine labels, operations, and operands
         if len(line) == 3:
             label = line[0]
             operation = line[1] #The operation is the second element in the array
-            operands = line[2] #The rest of the elements are operands
+            operands = line[2].split(',') #The rest of the elements are operands
         elif len(line) == 2:
             operation = line[0]
-            operands = line[1]
+            operands = line[1].split(',') #Split the operands by comma
         elif len(line) == 1:
             operation = line[0]
         #Look for a START operation
         if operation == 'START':
-            #Set the starting adress to the one found with start
-            self.starting_address = int(operands[0], 16)
-            self.location_counters['Default'] = self.starting_address
-            self.current_block = 'Default'
-            self.program_name = label
+            # Create new control section
+            self.global_starting_address = int(operands[0], 16)
+            self.create_new_control_section(label)
             return
+        elif operation == 'CSECT':
+            self.create_new_control_section(label)
+            return
+        elif operation == 'EXTDEF':
+            for symbol in operands:
+                self.cs.set_external_defs(symbol)
+            return
+        elif operation == 'EXTREF':
+            self.cs.set_external_refs(operands)
+            return
+        
+        # Set location counter for the current block
+        location_counter = self.cs.get_location_counter()
+        
         #Check for USE directive. This indicates program switching
         if operation == 'USE':
-            new_block = operands or 'Default'
-            self.location_counters[self.current_block] = self.location_counters.get(self.current_block)#Saving the current location counter
-            self.current_block = new_block 
+            self.cs.update_location_counter(location_counter) #Update the location counter for the new block
+            self.cs.set_program_block(operands or 'Default')
             #Initialize the location counter for the new block (If neeeded)
-            if new_block not in self.location_counters:
-                self.location_counters[new_block] = 0
+            if self.cs.get_location_counter() == None:
+                self.cs.update_location_counter(0)
                 return
 
         elif operation == 'LTORG' or operation == 'END': #Check for LTORG or END
             #Assign the literals to the location counter
-            for key in self.literal_table.keys():
-                if self.literal_table[key][0] == None:
-                    self.literal_table[key][0] = f'{self.location_counters[self.current_block]:04X}'
-                    hex_location = f'{self.location_counters[self.current_block]:04X}' #Convert location counter to hex string
-                    self.intermediate_code.append([hex_location, '*', key, ''])
-                    self.location_counters[self.current_block] += self.calcualte_X_C(key[1:])
+            for key in self.cs.get_literal_keys():
+                if self.cs.get_literal_value(key) == None:
+                    self.cs.add_literal(key, f'{location_counter:04X}')
+                    hex_location = f'{location_counter:04X}' #Convert location counter to hex string
+                    self.cs.update_intermediate_code([hex_location, '*', key, ''])
+                    self.cs.update_current_block(self.calcualte_X_C(key[1:]))
             return
         if label:
             try:
                 if operation == 'EQU':
-                    if operands.startswith('*'):
-                        self.symbol_table.add_symbol(label, f'{self.location_counters[self.current_block]:04X}')
+                    if operands[0].startswith('*'):
+                        self.cs.add_symbol(label, f'{location_counter:04X}')
                     else:
-                        value ,parts = self.calculate_EQU(operands)
-                        self.symbol_table.add_symbol(label, value)
+                        value ,parts = self.calculate_EQU(operands[0])
+                        self.cs.add_symbol(label, value)
                         groups = parts.groups()
                         for i, part in enumerate(groups):  # Enumerate through groups
                             if part in {"+", "-", "*", "/"}:
@@ -78,36 +93,35 @@ class PassOne:
 
                             # Handle the first part differently
                             if i == 0:
-                                self.modification_records.append(
-                                    [f'{self.location_counters[self.current_block]:06X}', f'{len(label):02X}', "+" + part]
-                                )
+                                self.cs.add_modification_record([f'{location_counter:06X}', f'{len(label):02X}', "+" + part])
                             else:
-                                self.modification_records.append(
-                                    [f'{self.location_counters[self.current_block]:06X}', f'{len(label):02X}', groups[i-1] + part])
-                            
+                                self.cs.add_modification_record([f'{location_counter:06X}', f'{len(label):02X}', groups[i-1] + part])                  
                     return          
-                self.symbol_table.add_symbol(label, f'{self.location_counters[self.current_block]:04X}')
+                self.cs.add_symbol(label, f'{location_counter:04X}')
             except ValueError as e:
                 print(f"Error: {e}")
+                
         # Check for literals
         if operands:
-            if operands.startswith('=C') or operands.startswith('=X'):
-                self.literal_table[operands] = [None]
+            if operands[0].startswith('=C') or operands[0].startswith('=X'):
+                self.cs.add_literal(operands[0], None)
             
         #Store the intermediate code for Pass Two
-        hex_location = f'{self.location_counters[self.current_block]:04X}' #Convert location counter to hex string
+        hex_location = f'{location_counter:04X}' #Convert location counter to hex string
         if operation == "LDB":
             # Push Value of base register to symbol table
-            self.symbol_table.add_symbol("BASE", operands)
+            self.cs.add_symbol("BASE", f'{location_counter:04X}')
         elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'WORD' or operation == 'BASE' or operation == 'NOBASE':
-            instruction_length = self.get_instruction_length(operation,operands)
+            instruction_length = self.get_instruction_length(operation,operands[0])
             self.location_counters[self.current_block] += instruction_length
+            self.cs.update_location_counter(instruction_length)
             return
-        self.intermediate_code.append([hex_location, label, operation, operands])
+        self.intermediate_code.append([hex_location, label, operation, operands[0]])
+        self.cs.update_intermediate_code([hex_location, label, operation, operands[0]])
 
         #Updating location counter based on instruction length        
-        instruction_length = self.get_instruction_length(operation,operands)
-        self.location_counters[self.current_block] += instruction_length
+        instruction_length = self.get_instruction_length(operation,operands[0])
+        self.cs.update_location_counter(instruction_length)
                 
 
     def get_instruction_length(self, operation,operands):
@@ -185,7 +199,16 @@ class PassOne:
             
             result = operations[operator](int(left_operand, 16), int(right_operand, 16))
             return f'{result:04X}', match
+    
+    def create_new_control_section(self, label):
+        #Create a new control section
+        self.cs = ControlSection(label)
+        self.cs.set_start_address(self.global_starting_address)
+        self.controlSections[label] = self.cs
+        self.cs.set_program_block('Default')
+        self.cs.update_location_counter(self.global_starting_address)
         
+    
     def run(self, input_file):
         #Will process the input file and return the intermediate code for Pass Two
         #First, pre-process the file
@@ -196,7 +219,8 @@ class PassOne:
         self.program_length = self.location_counters[self.current_block] - self.starting_address #Final location counter - starting address
         return self.intermediate_code, f'{self.program_length:04X}', f'{self.starting_address:04X}', self.program_name, self.literal_table, self.modification_records #Return the intermediate code for Pass Tw
 
-op_table = OpTable()
+
+"""op_table = OpTable()
 sym_table = SymTable()
  # Create the PassOne object
 passOne = PassOne(op_table, sym_table)
@@ -309,12 +333,12 @@ class PassOne:
             # But since this is Pass One, we focus on control sections and symbols.
 
     def finalize_control_sections(self):
-        """ Finalize the control sections by setting their lengths. """
+         Finalize the control sections by setting their lengths. 
         for cs_name, cs in self.control_sections.items():
             # The length is calculated based on the current memory address
             cs.set_length(self.current_address - cs.start_address)
 
     def get_global_symbol_table(self):
-        """ Returns the global symbol table that includes all symbols from all control sections. """
-        return self.global_symbol_table
+         Returns the global symbol table that includes all symbols from all control sections. 
+        return self.global_symbol_table"""
    
