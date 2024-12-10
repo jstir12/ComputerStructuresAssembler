@@ -40,19 +40,29 @@ class PassOne:
         if operation == 'START':
             #Set the starting adress to the one found with start
             self.starting_address = int(operands[0], 16)
-            self.location_counters['Default'] = self.starting_address
-            self.current_block = 'Default'
+            self.location_counters[self.current_block] = self.starting_address
+            #self.current_block = 'Default'
             self.program_name = label
             return
         #Check for USE directive. This indicates program switching
-        if operation == 'USE':
+        elif operation == 'USE':
             new_block = operands or 'Default'
-            self.location_counters[self.current_block] = self.location_counters.get(self.current_block)#Saving the current location counter
+            if new_block == self.current_block:
+                return
+            self.location_counters[self.current_block] = self.location_counters.get(self.current_block,0)#Saving the current location counter
+            self.current_block = new_block
+
+            if new_block not in self.location_counters:
+                self.location_counters[new_block] = 0
+            return
+
+            '''
+            self.location_counters[self.current_block] = self.location_counters.get(self.current_block,0)#Saving the current location counter
             self.current_block = new_block 
             #Initialize the location counter for the new block (If neeeded)
             if new_block not in self.location_counters:
                 self.location_counters[new_block] = 0
-                return
+                return'''
 
         elif operation == 'LTORG' or operation == 'END': #Check for LTORG or END
             #Assign the literals to the location counter
@@ -198,7 +208,9 @@ class PassOne:
 
 op_table = OpTable()
 sym_table = SymTable()
- # Create the PassOne object
+# Create the PassOne object
 passOne = PassOne(op_table, sym_table)
+
+#print(passOne.run('Assembly/basic.txt'))
 
 print(passOne.run('Assembly/prog_blocks.txt'))
