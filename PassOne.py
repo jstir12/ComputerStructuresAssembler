@@ -46,8 +46,8 @@ class PassOne:
             self.global_starting_address = int(operands[0], 16)
             self.create_new_control_section(label)
             return
-        elif operation == 'CSECT':
-            self.create_new_control_section(label)
+        elif operands and operands[0] == 'CSECT':
+            self.create_new_control_section(operation)
             return
         elif operation == 'EXTDEF':
             for symbol in operands:
@@ -111,17 +111,15 @@ class PassOne:
         if operation == "LDB":
             # Push Value of base register to symbol table
             self.cs.add_symbol("BASE", f'{location_counter:04X}')
-        elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'WORD' or operation == 'BASE' or operation == 'NOBASE':
+        elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'BASE' or operation == 'NOBASE':
             instruction_length = self.get_instruction_length(operation,operands[0])
-            self.location_counters[self.current_block] += instruction_length
-            self.cs.update_location_counter(instruction_length)
+            self.cs.update_current_block(instruction_length)
             return
-        self.intermediate_code.append([hex_location, label, operation, operands[0]])
-        self.cs.update_intermediate_code([hex_location, label, operation, operands[0]])
+        self.cs.update_intermediate_code([hex_location, label, operation, operands[0] if operands else ''])
 
         #Updating location counter based on instruction length        
-        instruction_length = self.get_instruction_length(operation,operands[0])
-        self.cs.update_location_counter(instruction_length)
+        instruction_length = self.get_instruction_length(operation, operands[0] if operands else None)
+        self.cs.update_current_block(instruction_length)
                 
 
     def get_instruction_length(self, operation,operands):
@@ -192,9 +190,9 @@ class PassOne:
             '/': lambda x, y: x / y
         }
         if match:
-            left_operand = self.symbol_table.get_address(match.group(1))
+            left_operand = self.cs.get_symbol_address(match.group(1))
             operator = match.group(2)
-            right_operand = self.symbol_table.get_address(match.group(3))
+            right_operand = self.cs.get_symbol_address(match.group(3))
             
             
             result = operations[operator](int(left_operand, 16), int(right_operand, 16))
@@ -215,9 +213,9 @@ class PassOne:
         lines = self.pre_process(input_file)
         for line in lines:
             self.process_line(line)
-        print (self.symbol_table.symbols)
-        self.program_length = self.location_counters[self.current_block] - self.starting_address #Final location counter - starting address
-        return self.intermediate_code, f'{self.program_length:04X}', f'{self.starting_address:04X}', self.program_name, self.literal_table, self.modification_records #Return the intermediate code for Pass Tw
+        for cs in self.controlSections.values():
+            cs.set_length(cs.get_location_counter() - cs.get_start_address())
+        return self.controlSections
 
 
 """op_table = OpTable()

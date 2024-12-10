@@ -74,13 +74,10 @@ class ControlSection:
         """Retrieves the local symbols for the control section."""
         return self.symbols
     
-    def get_symbol_names(self):
-        """Retrieves the names of the local symbols for the control section."""
-        return self.symbols.get_symbol_names()
     
     def get_symbol_address(self, symbol_name):
         """Retrieves the address of a symbol if it exists locally in this control section."""
-        return self.symbols.get(symbol_name, None)
+        return self.symbols.get_address(symbol_name)
     
     def get_intermediate_code(self):
         """Retrieves the intermediate code for the control section."""
