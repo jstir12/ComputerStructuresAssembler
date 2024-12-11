@@ -57,6 +57,11 @@ class PassTwo:
                     if mnemonic == 'RSUB':
                         object_code = "4F0000"
                     elif mnemonic == 'WORD':
+                        for row in control_section.get_expressions():
+                            if operand in row:
+                                operand = row[0]
+                                label = row[1]
+                                operand = self.calculate_EQU(operand, pc, label)
                         object_code = f"{int(operand):06X}"
                     elif mnemonic == 'BYTE':
                         object_code = self.get_X_C(operand)
@@ -298,4 +303,91 @@ class PassTwo:
         elif value.startswith('C'):
             object_code = ''.join([f"{ord(char):02X}" for char in value[2:-1]])
         return object_code
+    
+    def calculate_EQU(self, operands, location_counter, label):
+        # Split the expression into tokens (operands and operators)
+        tokens = re.findall(r"[A-Za-z0-9]+|[+\-*/()]", operands)
+        operations = {
+            '+': lambda x, y: x + y,
+            '-': lambda x, y: x - y,
+            '*': lambda x, y: x * y,
+            '/': lambda x, y: x // y  # Integer division for addresses
+        }
+
+        external_refs = self.current_section.get_external_refs()
+        stack = []  # Use a stack for evaluating expressions
+        operator_stack = []  # Stack for operators to handle precedence
+
+        def apply_operator():
+            # Apply the operator on the stack
+            operator = operator_stack.pop()
+            right_operand = stack.pop()
+            left_operand = stack.pop()
+
+            if not left_operand[0] or not right_operand[0]:
+                # One or both operands are unresolved (external references)
+                stack.append([0, right_operand[1]])  # Placeholder value
+                self.add_modification_record(operator, left_operand[1], right_operand[1], location_counter, label)
+            else:
+                # Both operands are resolved values
+                result = operations[operator](left_operand[0], right_operand[0])
+                stack.append([result, right_operand[1]])
+                # Always add a modification record for resolved addresses if relocation is needed
+                if operator == '+':
+                    self.add_modification_record(operator, left_operand[1], right_operand[1], location_counter, label)
+
+        precedence = {'+': 1, '-': 1, '*': 2, '/': 2, '(': 0}
+
+        for token in tokens:
+            if token in operations:
+                # Handle operator precedence
+                while operator_stack and precedence[operator_stack[-1]] >= precedence[token]:
+                    apply_operator()
+                operator_stack.append(token)
+            elif token == '(':
+                operator_stack.append(token)
+            elif token == ')':
+                while operator_stack and operator_stack[-1] != '(':
+                    apply_operator()
+                operator_stack.pop()  # Remove the '('
+            else:
+                # It's an operand; determine if it's external, local, or undefined
+                if token in external_refs:
+                    # It's an external reference; leave it as a string
+                    stack.append([None, token])
+                elif token in self.current_section.get_symbol_table().symbols:
+                    # It's a local symbol; resolve it to a numeric value
+                    resolved_value = int(self.current_section.get_symbol_address(token), 16)
+                    stack.append([resolved_value, token])
+                else:
+                    # It's an undefined symbol; handle the error
+                    raise ValueError(f"Undefined symbol: {token}")
+
+        while operator_stack:
+            apply_operator()
+
+        # Final result should be the only item left in the stack
+        result = stack.pop()
+        return f'{result[0]:04X}'
+    
+    def add_modification_record(self, operator, left_operand, right_operand, location_counter, label):
+        if isinstance(left_operand, str):  # External reference
+            self.current_section.add_modification_record([
+                f'{location_counter:06X}', f'{len(label):02X}', '+' + left_operand
+            ])
+        else:
+            # Add record for resolved left operand
+            self.current_section.add_modification_record([
+                f'{location_counter:06X}', f'{len(label):02X}', f'+{left_operand:04X}'
+            ])
+
+        if isinstance(right_operand, str):  # External reference
+            self.current_section.add_modification_record([
+                f'{location_counter:06X}', f'{len(label):02X}', f'{operator}{right_operand}'
+            ])
+        else:
+            # Add record for resolved right operand
+            self.current_section.add_modification_record([
+                f'{location_counter:06X}', f'{len(label):02X}', f'{operator}{right_operand:04X}'
+            ])    
     
