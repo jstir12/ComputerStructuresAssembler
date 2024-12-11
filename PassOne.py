@@ -28,32 +28,34 @@ class PassOne:
         #label, operation, operands = self.parse_line(line)
         label = None
         operation = None
-        operands = []
+        operands = None
         
         #Since the codes are stored in inside, arrays, we can use their length to determine labels, operations, and operands
         if len(line) == 3:
             label = line[0]
             operation = line[1] #The operation is the second element in the array
-            operands = line[2].split(',') #The rest of the elements are operands
+            operands = line[2]#The rest of the elements are operands
         elif len(line) == 2:
             operation = line[0]
-            operands = line[1].split(',') #Split the operands by comma
+            operands = line[1] #Split the operands by comma
         elif len(line) == 1:
             operation = line[0]
         #Look for a START operation
         if operation == 'START':
             # Create new control section
-            self.global_starting_address = int(operands[0], 16)
+            self.global_starting_address = int(operands, 16)
             self.create_new_control_section(label)
             return
-        elif operands and operands[0] == 'CSECT':
+        elif operands and operands == 'CSECT':
             self.create_new_control_section(operation)
             return
         elif operation == 'EXTDEF':
+            operands = operands.split(',')
             for symbol in operands:
                 self.cs.set_external_defs(symbol)
             return
         elif operation == 'EXTREF':
+            operands = operands.split(',')
             self.cs.set_external_refs(operands)
             return
         
@@ -63,7 +65,7 @@ class PassOne:
         #Check for USE directive. This indicates program switching
         if operation == 'USE':
             self.cs.update_location_counter(location_counter) #Update the location counter for the new block
-            self.cs.set_program_block(operands[0] if operands else 'Default')
+            self.cs.set_program_block(operands if operands else 'Default')
             #Initialize the location counter for the new block (If neeeded)
             if self.cs.get_location_counter() == None:
                 self.cs.update_location_counter(0)
@@ -83,30 +85,26 @@ class PassOne:
         if label:
             try:
                 if operation == 'EQU':
-                    if operands[0].startswith('*'):
+                    if operands.startswith('*'):
                         self.cs.add_symbol(label, f'{location_counter:04X}')
                     else:
-                        value ,parts = self.calculate_EQU(operands[0])
+                        value = self.calculate_EQU(operands, location_counter, label)
                         self.cs.add_symbol(label, value)
-                        groups = parts.groups()
-                        for i, part in enumerate(groups):  # Enumerate through groups
-                            if part in {"+", "-", "*", "/"}:
-                                continue  # Skip operators
-
-                            # Handle the first part differently
-                            if i == 0:
-                                self.cs.add_modification_record([f'{location_counter:06X}', f'{len(label):02X}', "+" + part])
-                            else:
-                                self.cs.add_modification_record([f'{location_counter:06X}', f'{len(label):02X}', groups[i-1] + part])                  
-                    return          
-                self.cs.add_symbol(label, f'{location_counter:04X}')
+                        
+                    return
+                elif any(op in operands for op in ['+', '-', '/', '*']):
+                    value = self.calculate_EQU(operands, location_counter, label)
+                    self.cs.add_symbol(label, f'{location_counter:04X}') 
+                    operands = value
+                else:     
+                    self.cs.add_symbol(label, f'{location_counter:04X}')
             except ValueError as e:
                 print(f"Error: {e}")
                 
         # Check for literals
         if operands:
-            if operands[0].startswith('=C') or operands[0].startswith('=X'):
-                self.cs.add_literal(operands[0], None)
+            if operands.startswith('=C') or operands.startswith('=X'):
+                self.cs.add_literal(operands, None)
             
         #Store the intermediate code for Pass Two
         hex_location = f'{location_counter:04X}' #Convert location counter to hex string
@@ -114,13 +112,13 @@ class PassOne:
             # Push Value of base register to symbol table
             self.cs.add_symbol("BASE", f'{location_counter:04X}')
         elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'BASE' or operation == 'NOBASE':
-            instruction_length = self.get_instruction_length(operation,operands[0])
+            instruction_length = self.get_instruction_length(operation,operands)
             self.cs.update_current_block(instruction_length)
             return
-        self.cs.update_intermediate_code([hex_location, label, operation, operands[0] if operands else ''])
+        self.cs.update_intermediate_code([hex_location, label, operation, operands if operands else ''])
 
         #Updating location counter based on instruction length        
-        instruction_length = self.get_instruction_length(operation, operands[0] if operands else None)
+        instruction_length = self.get_instruction_length(operation, operands if operands else None)
         self.cs.update_current_block(instruction_length)
                 
 
@@ -150,6 +148,13 @@ class PassOne:
         #Referring to the opTable class for the format type
         if operation.startswith('+'):
             opcode_format = 4
+            if not operands.startswith('#'):
+                if ',X' in operands:
+                    operands = operands[:-2]
+                if operands in self.cs.get_external_refs():    
+                    self.cs.add_modification_record([f'{self.cs.get_location_counter()+1:06X}',f'{5:02X}', f'+{operands}'])
+                else:
+                    self.cs.add_modification_record([f'{self.cs.get_location_counter()+1:06X}',f'{5:02X}', None])
         else:
             opcode_format = self.op_table.getFormat(operation)
             
@@ -182,23 +187,96 @@ class PassOne:
             return len(operands) - 3
         return 0
     
-    def calculate_EQU(self, operands):
-        string_pattern = r"([A-Za-z0-9]+)([+\-*/])([A-Za-z0-9]+)"
-        match = re.match(string_pattern, operands)
+
+
+    def calculate_EQU(self, operands, location_counter, label):
+        # Split the expression into tokens (operands and operators)
+        tokens = re.findall(r"[A-Za-z0-9]+|[+\-*/()]", operands)
         operations = {
             '+': lambda x, y: x + y,
             '-': lambda x, y: x - y,
             '*': lambda x, y: x * y,
-            '/': lambda x, y: x / y
+            '/': lambda x, y: x // y  # Integer division for addresses
         }
-        if match:
-            left_operand = self.cs.get_symbol_address(match.group(1))
-            operator = match.group(2)
-            right_operand = self.cs.get_symbol_address(match.group(3))
-            
-            
-            result = operations[operator](int(left_operand, 16), int(right_operand, 16))
-            return f'{result:04X}', match
+
+        external_refs = self.cs.get_external_refs()
+        stack = []  # Use a stack for evaluating expressions
+        operator_stack = []  # Stack for operators to handle precedence
+
+        def apply_operator():
+            # Apply the operator on the stack
+            operator = operator_stack.pop()
+            right_operand = stack.pop()
+            left_operand = stack.pop()
+
+            if not left_operand[0] or not right_operand[0]:
+                # One or both operands are unresolved (external references)
+                stack.append([0, right_operand[1]])  # Placeholder value
+                self.add_modification_record(operator, left_operand[1], right_operand[1], location_counter, label)
+            else:
+                # Both operands are resolved values
+                result = operations[operator](left_operand[0], right_operand[0])
+                stack.append([result, right_operand[1]])
+                # Always add a modification record for resolved addresses if relocation is needed
+                if operator == '+':
+                    self.add_modification_record(operator, left_operand[1], right_operand[1], location_counter, label)
+
+        precedence = {'+': 1, '-': 1, '*': 2, '/': 2, '(': 0}
+
+        for token in tokens:
+            if token in operations:
+                # Handle operator precedence
+                while operator_stack and precedence[operator_stack[-1]] >= precedence[token]:
+                    apply_operator()
+                operator_stack.append(token)
+            elif token == '(':
+                operator_stack.append(token)
+            elif token == ')':
+                while operator_stack and operator_stack[-1] != '(':
+                    apply_operator()
+                operator_stack.pop()  # Remove the '('
+            else:
+                # It's an operand; determine if it's external, local, or undefined
+                if token in external_refs:
+                    # It's an external reference; leave it as a string
+                    stack.append([None, token])
+                elif token in self.cs.get_symbol_table().symbols:
+                    # It's a local symbol; resolve it to a numeric value
+                    resolved_value = int(self.cs.get_symbol_address(token), 16)
+                    stack.append([resolved_value, token])
+                else:
+                    # It's an undefined symbol; handle the error
+                    raise ValueError(f"Undefined symbol: {token}")
+
+        while operator_stack:
+            apply_operator()
+
+        # Final result should be the only item left in the stack
+        result = stack.pop()
+        return f'{result[0]:04X}'
+
+    def add_modification_record(self, operator, left_operand, right_operand, location_counter, label):
+        if isinstance(left_operand, str):  # External reference
+            self.cs.add_modification_record([
+                f'{location_counter:06X}', f'{len(label):02X}', '+' + left_operand
+            ])
+        else:
+            # Add record for resolved left operand
+            self.cs.add_modification_record([
+                f'{location_counter:06X}', f'{len(label):02X}', f'+{left_operand:04X}'
+            ])
+
+        if isinstance(right_operand, str):  # External reference
+            self.cs.add_modification_record([
+                f'{location_counter:06X}', f'{len(label):02X}', f'{operator}{right_operand}'
+            ])
+        else:
+            # Add record for resolved right operand
+            self.cs.add_modification_record([
+                f'{location_counter:06X}', f'{len(label):02X}', f'{operator}{right_operand:04X}'
+            ])
+
+
     
     def create_new_control_section(self, label):
         #Create a new control section
@@ -206,8 +284,7 @@ class PassOne:
         self.cs.set_start_address(self.global_starting_address)
         self.controlSections[label] = self.cs
         self.cs.set_program_block('Default')
-        self.cs.update_location_counter(self.global_starting_address)
-        
+        self.cs.update_location_counter(self.global_starting_address)                     
     
     def run(self, input_file):
         #Will process the input file and return the intermediate code for Pass Two

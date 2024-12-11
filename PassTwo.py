@@ -1,6 +1,7 @@
+import re
 class PassTwo:
-    def __init__(self, symbol_table, intermediate_code, op_table, basereg, program_name, start_address, program_length, literal_table, modification_records):
-        self.symbol_table = symbol_table
+    def __init__(self, control_sections, op_table):
+        """self.symbol_table = symbol_table
         self.intermediate_code = intermediate_code
         self.machine_code = []
         self.modifications = []  # To track modification records
@@ -11,133 +12,176 @@ class PassTwo:
         self.start_address = int(start_address, 16)
         self.program_length = int(program_length, 16)
         self.literal_table = literal_table
-        self.modification_records = modification_records
+        self.modification_records = modification_records"""
+        self.control_sections = control_sections
+        self.op_table = op_table
+        self.current_section = None
+        self.basereg = None
 
     def generate_machine_code(self):
         # Set Base register
-        if "BASE" in self.symbol_table.symbols:
-            self.basereg = self.symbol_table.symbols["BASE"]
-            if not self.basereg.isdigit():
-                self.basereg = self.symbol_table.get_address(self.basereg[1:])
+        
+        for control_section in self.control_sections.values():
+            self.current_section = control_section
+            intermediate_code = control_section.get_intermediate_code()
+            symbol_table = control_section.get_symbol_table()
+        
+            if "BASE" in symbol_table.symbols:
+                self.basereg = symbol_table.get_address("BASE")
                 
-        for line in self.intermediate_code:
-            # Assume the first element in line is the location counter (PC)
-            pc = int(line[0], 16)
-            is_function = False
-            # Parse line for label, mnemonic, and operand
-            label, mnemonic, operand = (None, None, None)
-            if len(line) == 4:
-                _, label, mnemonic, operand = line
-            elif len(line) == 3:
-                _, mnemonic, operand = line
-            else:
-                mnemonic = line[1]
-            
-            # Need to keep track of subroutines
-            if mnemonic == 'JSUB' or mnemonic[1:] == "JSUB":
-                self.functions.append(operand) 
-            if label in self.functions:
-                is_function = True
-            if mnemonic == "RSUB" or mnemonic == "WORD" or mnemonic == "BYTE" or label == '*':
-                if mnemonic == 'RSUB':
-                    object_code = "4F0000"
-                elif mnemonic == 'WORD':
-                    object_code = f"{int(operand):06X}"
-                elif mnemonic == 'BYTE':
-                    object_code = self.get_X_C(operand)
-                elif label == '*':
-                    object_code = self.get_X_C(mnemonic[1:])
-                    
-                self.machine_code.append([None,f"{int(line[0],16):04X}", object_code])
-                continue
-            
-            # Check if the mnemonic represents a format 4 instruction
-            is_format_4 = mnemonic.startswith('+')
-            if is_format_4:
-                opcode = self.op_table.getOpcodeValue(mnemonic[1:])
-                format = 4
-                if not operand.startswith('#'):
-                    self.modifications.append([f"{pc+1:06X}", f"{5:02X}"])
-            else:
-                # Get opcode and format if mnemonic is in the opcode table
-                if mnemonic in self.op_table.optable:
-                    opcode, format = self.op_table.getOpcode(mnemonic)
-                    format = int(format)
-                    
+            if self.basereg and not self.basereg.isdigit():
+                self.basereg = symbol_table.get_address(self.basereg[1:])
+                        
+            for line in intermediate_code:
+                # Assume the first element in line is the location counter (PC)
+                pc = int(line[0], 16)
+                is_function = False
+                # Parse line for label, mnemonic, and operand
+                label, mnemonic, operand = (None, None, None)
+                if len(line) == 4:
+                    _, label, mnemonic, operand = line
+                elif len(line) == 3:
+                    _, mnemonic, operand = line
                 else:
-                    raise ValueError(f"Error: Mnemonic '{mnemonic}' not found in opcode table.")
-
-            # Generate the object code for this line
-            try:
-                # Update the program counter for the next instruction
-                pc += format
-                object_code = self.calculate_object_code(opcode, format, operand, pc)
-                if object_code:
-                    if is_function:
-                        new_object_code = [label, f"{int(line[0],16):04X}", object_code]
-                    else:
-                        new_object_code = [None, f"{int(line[0],16):04X}", object_code]
-                    self.machine_code.append(new_object_code)
+                    mnemonic = line[1]
+                
+                # Need to keep track of subroutines
+                if mnemonic == 'JSUB' or mnemonic[1:] == "JSUB":
+                    control_section.add_function(operand)
+                    
+                if label in control_section.get_functions():
+                    is_function = True
+                    
+                if mnemonic == "RSUB" or mnemonic == "WORD" or mnemonic == "BYTE" or label == '*':
+                    if mnemonic == 'RSUB':
+                        object_code = "4F0000"
+                    elif mnemonic == 'WORD':
+                        object_code = f"{int(operand):06X}"
+                    elif mnemonic == 'BYTE':
+                        object_code = self.get_X_C(operand)
+                    elif label == '*':
+                        object_code = self.get_X_C(mnemonic[1:])
+                        control_section.update_machine_code([True, None,f"{int(line[0],16):04X}", object_code])
+                        continue
+                        
+                    control_section.update_machine_code([False, None,f"{int(line[0],16):04X}", object_code])
                     continue
-            except ValueError as e:
-                print(f"Warning: {e} at PC {pc:04X}")
-        return self.machine_code
+                
+                # Check if the mnemonic represents a format 4 instruction
+                is_format_4 = mnemonic.startswith('+')
+                if is_format_4:
+                    opcode = self.op_table.getOpcodeValue(mnemonic[1:])
+                    format = 4
+                else:
+                    # Get opcode and format if mnemonic is in the opcode table
+                    if mnemonic in self.op_table.optable:
+                        opcode, format = self.op_table.getOpcode(mnemonic)
+                        format = int(format)
+                        
+                    else:
+                        raise ValueError(f"Error: Mnemonic '{mnemonic}' not found in opcode table.")
 
-    def write_object_code_file(self, filename):
-        with open(filename, 'w') as obj_file:
-            # Write the Header Record
-            header_record = f"H^{self.program_name[:6]:<6}^{self.start_address:06X}^{self.program_length:06X}\n"
-            obj_file.write(header_record)
-            functions = 0
-            # Write Text Records
-            text_record = ""  # Stores object code for the current text record
-            record_start_address = None  # Start address of the current text record
-            record_length = 0  # Length of the current text record in bytes
+                # Generate the object code for this line
+                try:
+                    # Update the program counter for the next instruction
+                    pc += format
+                    object_code = self.calculate_object_code(opcode, format, operand, pc)
+                    if object_code:
+                        if is_function:
+                            new_object_code = [False, label, f"{int(line[0],16):04X}", object_code]
+                        else:
+                            new_object_code = [False, None, f"{int(line[0],16):04X}", object_code]
+                        control_section.update_machine_code(new_object_code)
+                        continue
+                except ValueError as e:
+                    print(f"Warning: {e} at PC {pc:04X}")
+        return
 
-            for function, pc, code in self.machine_code:
-                if record_start_address is None:
-                    record_start_address = pc
+    def write_object_code_file(self):
+        amount = 0
+        for control_section in self.control_sections.values():
+            amount += 1
+            program_name = control_section.get_name()
+            file_name = f'Object_Code_Files/{program_name}.txt'
+            modification_records = control_section.get_modification_records()
+            external_refs = control_section.get_external_refs()
+            external_defs = control_section.get_external_defs()
+            machine_code = control_section.get_machine_code()
+            start_address = control_section.get_start_address()
+            program_length = control_section.get_length()
+            
+            with open(file_name, 'w') as obj_file:
+                # Write the Header Record
+                header_record = f"H^{program_name[:6]:<6}^{start_address:06X}^{program_length:06X}\n"
+                obj_file.write(header_record)
+                functions = 0
+                
+                #Write external defs and refs if they exist
+                if external_defs:
+                    line = "D"
+                    for key, value in external_defs.items():
+                        line += f"^{key[:6]:<6}^{int(value,16):06X}"
+                    line += "\n"
+                    obj_file.write(line)
+                if external_refs:
+                    line = "R"
+                    for item in external_refs:
+                        line += f"^{item[:6]:<6}"
+                    line += "\n"
+                    obj_file.write(line)
+                
+                # Write Text Records
+                text_record = ""  # Stores object code for the current text record
+                record_start_address = None  # Start address of the current text record
+                record_length = 0  # Length of the current text record in bytes
 
-                # Check if adding this code would exceed 30 bytes
-                code_length = len(code) // 2  # Each 2 hex digits = 1 byte
-                if record_length + code_length > 30 or function is not None and functions == 0:
-                    # Write the current text record to the file
-                    if function is not None:
-                        functions += 1
+                for literal_flag, function, pc, code in machine_code:
+                    if record_start_address is None:
+                        record_start_address = pc
+
+                    # Check if adding this code would exceed 30 bytes
+                    code_length = len(code) // 2  # Each 2 hex digits = 1 byte
+                    if record_length + code_length > 30 or function is not None and functions == 0 or literal_flag:
+                        # Write the current text record to the file
+                        if function is not None:
+                            functions += 1
+                        record_start_address = int(record_start_address,16)
+                        text_record_line = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
+                        obj_file.write(text_record_line)
+
+                        # Reset for the next text record
+                        text_record = ""
+                        record_start_address = pc
+                        record_length = 0
+                    # Add the object code to the current text record
+                    text_record += code
+                    record_length += code_length
+
+                # Write the final text record, if any
+                if text_record:
                     record_start_address = int(record_start_address,16)
                     text_record_line = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
                     obj_file.write(text_record_line)
-
-                    # Reset for the next text record
-                    text_record = ""
-                    record_start_address = pc
-                    record_length = 0
-                # Add the object code to the current text record
-                text_record += code
-                record_length += code_length
-
-            # Write the final text record, if any
-            if text_record:
-                record_start_address = int(record_start_address,16)
-                text_record_line = f"T^{record_start_address:06X}^{record_length:02X}^{text_record}\n"
-                obj_file.write(text_record_line)
-
-            for address, value in self.modifications:
-                mod_record = f"M^{address}^{value}\n"
-                obj_file.write(mod_record)
-            for address, length, symbol in self.modification_records:
-                mod_record = f"M^{address}^{length}^{symbol}\n"
-                obj_file.write(mod_record) 
-            
-            
-            # Write the End Record
-            end_record = f"E^{self.start_address:06X}\n"
-            obj_file.write(end_record)
+                for address, length, symbol in modification_records:
+                    if not symbol:
+                        mod_record = f"M^{address}^{value}\n" 
+                    else:
+                        mod_record = f"M^{address}^{length}^{symbol}\n"
+                    obj_file.write(mod_record) 
+                
+                
+                # Write the End Record
+                if amount >1:
+                    end_record = f"E\n"       
+                else:
+                    end_record = f"E^{start_address:06X}\n"
+                obj_file.write(end_record)
 
 
     def calculate_object_code(self, opcode, format, operand, pc):
         object_code = ""
-
+        external_refs = self.current_section.get_external_refs()
+        
         if format == 1:
             # Format 1: opcode only
             object_code = f"{int(opcode,16):02X}"
@@ -158,16 +202,21 @@ class PassTwo:
             # Set up n, i, x, e flags
             e = 1 if format == 4 else 0
             n, i = self.determine_addressing_flags(operand)
-            x = 1 if ',X' in operand else 0
+            x, operand = (1, operand[:-2]) if ',X' in operand else (0, operand)
 
             # Determine the address
-            label_address = self.get_label_address(operand, n, i, x)
-            if i == 0 and n == 0 or i == 0 and n == 1 or i == 1 and n == 1 or i == 1 and not operand[1:].isdigit():
-                disp, b, p = self.calculate_disp(label_address, format, self.basereg, pc)
-                disp = int(disp)
-            else:
-                disp = int(label_address, 16)
+            if operand in external_refs:
+                disp = 0
                 b, p = 0, 0
+                
+            else:
+                label_address = self.get_label_address(operand, n, i)
+                if i == 0 and n == 0 or i == 0 and n == 1 or i == 1 and n == 1 or i == 1 and not operand[1:].isdigit():
+                    disp, b, p = self.calculate_disp(label_address, format, self.basereg, pc)
+                    disp = int(disp)
+                else:
+                    disp = int(label_address, 16)
+                    b, p = 0, 0
 
             # Combine opcode and flags into final object code
             opcode = int(opcode, 16)
@@ -202,22 +251,24 @@ class PassTwo:
             else:
                 raise ValueError(f"Displacement out of range for label address {label_address}")
 
-    def get_label_address(self, operand, n, i, x):
+    def get_label_address(self, operand, n, i):
         """Retrieve the address of a label, handling different addressing modes."""
+        
+        symbol_table = self.current_section.get_symbol_table()
+        literal_table = self.current_section.get_literal_table()
         # Direct (simple) addressing
         if n == 1 and i == 1:
             if operand.startswith('='):
-                label_address = self.literal_table[operand]
-                label_address = label_address[0]
+                label_address = literal_table[operand]
             else:
-                label_address = self.symbol_table.get_address(operand if x == 0 else operand[:-2])
+                label_address = symbol_table.get_address(operand)
         # Immediate or indirect addressing
         elif i == 1 and n == 0 and operand[1:].isdigit():
             label_address = f"{int(operand[1:]):04X}"
         elif i == 0 and n == 1:
-            label_address = self.symbol_table.get_address(operand[1:] if x==0 else operand[1:-2])
+            label_address = symbol_table.get_address(operand[1:])
         else:
-            label_address = self.symbol_table.get_address(operand[1:] if x==0 else operand[1:-2])
+            label_address = symbol_table.get_address(operand[1:])
         
         if label_address is None:
             raise ValueError(f"Label '{operand}' not found in symbol table.")
@@ -246,3 +297,4 @@ class PassTwo:
         elif value.startswith('C'):
             object_code = ''.join([f"{ord(char):02X}" for char in value[2:-1]])
         return object_code
+    

@@ -13,6 +13,8 @@ class ControlSection:
         self.modification_records = [] #Store modification records for Pass Two
         self.literal_table = {}
         self.program_block = None
+        self.machine_code = []
+        self.functions = []
     
     def add_symbol(self, symbol_name, address):
         """Adds a local symbol to the control section."""
@@ -43,9 +45,17 @@ class ControlSection:
     def set_program_block(self, block):
         self.program_block = block 
     
+    def set_functions(self, functions):
+        self.functions = functions
+    
+    
     def get_symbol_address(self, symbol_name):
         """Retrieves the address of a symbol if it exists locally in this control section."""
         return self.symbols.get(symbol_name, None)
+    
+    def get_symbol_table(self):
+        """Retrieves the symbol table for the control section."""
+        return self.symbols
     
     def get_program_block(self):
         return self.program_block
@@ -74,7 +84,6 @@ class ControlSection:
         """Retrieves the local symbols for the control section."""
         return self.symbols
     
-    
     def get_symbol_address(self, symbol_name):
         """Retrieves the address of a symbol if it exists locally in this control section."""
         return self.symbols.get_address(symbol_name)
@@ -82,6 +91,16 @@ class ControlSection:
     def get_intermediate_code(self):
         """Retrieves the intermediate code for the control section."""
         return self.intermediate_code
+    
+    def get_modification_records(self):
+        """Retrieves the modification records for the control section."""
+        return self.modification_records
+    
+    def get_functions(self):
+        return self.functions
+    
+    def get_machine_code(self): 
+        return self.machine_code
     
     def resolve_external_reference(self, symbol_name, global_symbol_table):
         """Resolves an external reference to a symbol by looking it up in the global symbol table."""
@@ -98,6 +117,9 @@ class ControlSection:
         """Retrieves the location counter for a block."""
         return self.location_counters.get(self.program_block, None)
     
+    def get_machine_code(self):
+        """Retrieves the machine code for the control section."""
+        return self.machine_code
     def update_current_block(self, value):
         """Updates the current block."""
         self.location_counters[self.program_block] += value
@@ -106,9 +128,16 @@ class ControlSection:
         """Updates the intermediate code."""
         self.intermediate_code.append(value)
     
+    def update_machine_code(self, value):
+        """Updates the machine code."""
+        self.machine_code.append(value)
+    
     def add_modification_record(self, value):
         """Adds a modification record."""
         self.modification_records.append(value)
+    
+    def add_function(self, function):
+        self.functions.append(function)
     
     def add_literal(self, literal_name, literal_value):
         """Adds a literal to the literal table."""
@@ -121,6 +150,10 @@ class ControlSection:
     def get_literal_value(self, literal_name):
         """Retrieves the value of a literal."""
         return self.literal_table.get(literal_name, None)
+    
+    def get_literal_table(self):
+        """Retrieves the literal table."""
+        return self.literal_table
     
     def search_location_counter(self, block):
         """Searches the location counter for a block."""
