@@ -164,7 +164,7 @@ class PassTwo:
                     obj_file.write(text_record_line)
                 for address, length, symbol in modification_records:
                     if not symbol:
-                        mod_record = f"M^{address}^{value}\n" 
+                        mod_record = f"M^{address}^{length}\n" 
                     else:
                         mod_record = f"M^{address}^{length}^{symbol}\n"
                     obj_file.write(mod_record) 
