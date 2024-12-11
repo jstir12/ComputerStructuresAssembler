@@ -12,6 +12,7 @@ class PassTwo:
         self.program_length = int(program_length, 16)
         self.literal_table = literal_table
         self.modification_records = modification_records
+        #self.block_table = block_table
 
     def generate_machine_code(self):
         # Set Base register

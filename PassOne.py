@@ -202,10 +202,10 @@ class PassOne:
         lines = self.pre_process(input_file)
         for line in lines:
             self.process_line(line)
-        print (self.symbol_table.symbols)
+        #print (self.symbol_table.symbols)
         self.program_length = self.location_counters[self.current_block] - self.starting_address #Final location counter - starting address
         return self.intermediate_code, f'{self.program_length:04X}', f'{self.starting_address:04X}', self.program_name, self.literal_table, self.modification_records #Return the intermediate code for Pass Tw
-
+'''
 op_table = OpTable()
 sym_table = SymTable()
 # Create the PassOne object
@@ -214,3 +214,4 @@ passOne = PassOne(op_table, sym_table)
 #print(passOne.run('Assembly/basic.txt'))
 
 print(passOne.run('Assembly/prog_blocks.txt'))
+'''
