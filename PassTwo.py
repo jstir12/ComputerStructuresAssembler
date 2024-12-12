@@ -210,7 +210,10 @@ class PassTwo:
                 b, p = 0, 0
                 
             else:
-                label_address = self.get_label_address(operand, n, i)
+                if operand.startswith('*'):
+                    label_address = f'{pc - int(operand[1:]) - format:04X}'
+                else:
+                    label_address = self.get_label_address(operand, n, i)
                 if i == 0 and n == 0 or i == 0 and n == 1 or i == 1 and n == 1 or i == 1 and not operand[1:].isdigit():
                     disp, b, p = self.calculate_disp(label_address, format, self.basereg, pc)
                     disp = int(disp)
