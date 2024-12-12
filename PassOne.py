@@ -22,6 +22,14 @@ class PassOne:
         self.cs = None
         self.global_starting_address = 0
 
+
+
+#Create 2 dict: 1 that maps to numbers to names, 1 maps name to starting address and length
+#Add new variable up top to keep track of program block amount
+#Add the end, calcularte each program starting block based of length of previos rogram block
+#Anytime we're referencing symtable getting address, we need to ensure the correct index and not just the array
+
+
     def process_line(self, line): 
         #Next, process the line
         """Processes each line of the assembly code for Pass One."""
@@ -90,6 +98,7 @@ class PassOne:
                     else:
                         value = self.calculate_EQU(operands, location_counter, label)
                         self.cs.add_symbol(label, value)
+                        
                         
                     return
                 elif any(op in operands for op in ['+', '-', '/', '*']):
@@ -202,7 +211,9 @@ class PassOne:
         external_refs = self.cs.get_external_refs()
         stack = []  # Use a stack for evaluating expressions
         operator_stack = []  # Stack for operators to handle precedence
-
+        #Anytime I come across the EQU satement, add it to an arry or dictionary of unresolved addresses that need to be fixed
+        #At the end, I will calculate teh unresolved addresses and 
+        #IF you're subtracting, you change the program block number of that symbol to the default program block number
         def apply_operator():
             # Apply the operator on the stack
             operator = operator_stack.pop()
@@ -292,6 +303,7 @@ class PassOne:
         lines = self.pre_process(input_file)
         for line in lines:
             self.process_line(line)
+            #IF operator is = minus, set the program  block number to default program block number
         for cs in self.controlSections.values():
             cs.set_length(cs.get_location_counter() - cs.get_start_address())
         return self.controlSections

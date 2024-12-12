@@ -19,6 +19,10 @@ class PassTwo:
         self.basereg = None
         #self.block_table = block_table
 
+
+#Find the value for current program block. Take starting address and add it to label adrresss
+
+
     def generate_machine_code(self):
         # Set Base register
         
