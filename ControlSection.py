@@ -117,6 +117,10 @@ class ControlSection:
         """Retrieves the location counter for a block."""
         return self.location_counters.get(self.program_block, None)
     
+    def get_location_counter_with_block(self, block):
+        """Retrieves the location counter for a block."""
+        return self.location_counters.get(block, None)
+    
     def get_machine_code(self):
         """Retrieves the machine code for the control section."""
         return self.machine_code

@@ -92,7 +92,8 @@ class PassOne:
                 block_number = self.program_blocks_maps.get(block_name,len(self.program_blocks_maps))
                 self.program_blocks_maps[block_name] = block_number
 
-                #Calculate the starting address of the new block
+                
+            #Calculate the starting address of the new block
                 if block_number == 0:
                     starting_address = self.global_starting_address
                 elif self.block_info:
@@ -106,7 +107,7 @@ class PassOne:
                 #Initialize the block information
                 self.block_info[block_name] = {
                     'block_number': block_number,
-                    'address': starting_address,
+                    'address': self.global_starting_address,
                     'length': 0
                 }
             if self.cs.get_location_counter() == None:
@@ -167,11 +168,19 @@ class PassOne:
         self.cs.update_current_block(instruction_length)
                 
     def finalize_block_lengths(self):
-        """Finalizes the lengths of the program blocks."""
-        if self.cs.get_program_block():
-            previous_block = self.cs.get_program_block()
-            if previous_block in self.block_info:
-                self.block_info[previous_block]['length'] = self.cs.get_location_counter() - self.block_info[previous_block]['address']
+        #Finalizes the lengths of the program blocks.
+        for key, values in self.block_info.items():
+            values['length'] = self.cs.get_location_counter_with_block(key) - values['address']
+        
+        # Initialize the starting address
+        current_address = self.global_starting_address
+
+        # Iterate through the dictionary in sorted order of block_number
+        for block_name, block_data in sorted(self.block_info.items(), key=lambda x: x[1]['block_number']):
+            # Set the starting address for the current block
+            block_data['address'] = current_address
+            # Update the current_address for the next block
+            current_address += block_data['length']
 
         #Displaying the final block information
         print(f"Block Name | Block Number | Starting Address | Length")
