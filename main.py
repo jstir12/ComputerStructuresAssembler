@@ -12,7 +12,7 @@ def main():
     op_table = OpTable()
     # Create the PassOne object
     passOne = PassOne(op_table)
-    control_sections = passOne.run("Assembly/literals.txt")
+    control_sections = passOne.run("Assembly/prog_blocks.txt")
     # Create the PassTwo object
     passTwo = PassTwo(control_sections, op_table)
     passTwo.generate_machine_code()

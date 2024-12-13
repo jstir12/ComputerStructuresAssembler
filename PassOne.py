@@ -21,6 +21,10 @@ class PassOne:
         self.controlSections = {}
         self.cs = None
         self.global_starting_address = 0
+        self.program_blocks_maps = {"Default": 0}
+        self.program_block_amount = 0
+        self.block_info = {} #Dictionary to store block name, number, address, and length
+
 
 
 
@@ -77,6 +81,45 @@ class PassOne:
             #Initialize the location counter for the new block (If neeeded)
             if self.cs.get_location_counter() == None:
                 self.cs.update_location_counter(0)
+
+            
+            #Map numbers to names
+            if operands is None:
+                operands = 'Default'
+            if operands not in self.program_blocks_maps:
+                self.program_block_amount += 1
+                self.program_blocks_maps[operands] = self.program_block_amount
+            else:
+                operands = self.program_blocks_maps[operands]
+
+            print(self.program_blocks_maps)
+            '''
+            #Calculate the starting address and legnth block
+            if operands not in self.block_info:
+                #Get the block number based on the program blocks map
+                block_number = self.program_blocks_maps[operands]
+                
+                if block_number == 0:
+                    starting_address = self.global_starting_address  #Set the starting address for the first block
+                else:
+                    if self.block_info:
+                        last_block = list(self.block_info.values())[-1]  #Set the last block in block_info
+                        starting_address = last_block['address'] + last_block['length']  #Calculate starting address for the new block
+                    else:
+                        starting_address = self.global_starting_address
+                
+                #Set the length to 0 for now (will be updated later)
+                length = 0
+
+                #Store the block information
+                self.block_info[operands] = {
+                    'block_number': block_number,
+                    'address': starting_address,
+                    'length': length
+                }
+
+                print(self.program_blocks_maps)'''
+            
             return
             
 
@@ -105,7 +148,7 @@ class PassOne:
                     value = self.calculate_EQU(operands, location_counter, label)
                     self.cs.add_symbol(label, f'{location_counter:04X}', self.cs.get_program_block()) 
                     operands = value
-                else:     
+                else: 
                     self.cs.add_symbol(label, f'{location_counter:04X}',self.cs.get_program_block())
             except ValueError as e:
                 print(f"Error: {e}")
@@ -307,7 +350,9 @@ class PassOne:
         for cs in self.controlSections.values():
             cs.set_length(cs.get_location_counter() - cs.get_start_address())
         return self.controlSections
-
+    
+    
+    
 
 """op_table = OpTable()
 sym_table = SymTable()
