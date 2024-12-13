@@ -16,11 +16,11 @@ class ControlSection:
         self.machine_code = []
         self.functions = []
     
-    def add_symbol(self, symbol_name, address):
+    def add_symbol(self, symbol_name, address,block_number):
         """Adds a local symbol to the control section."""
         if symbol_name in self.external_defs and self.external_defs[symbol_name] is None:
             self.set_external_defs_address(symbol_name, address)
-        self.symbols.add_symbol(symbol_name, address)
+        self.symbols.add_symbol(symbol_name, address, block_number)
     
     def set_external_refs(self, external_refs):
         """Sets the external references for the control section."""

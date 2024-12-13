@@ -94,19 +94,19 @@ class PassOne:
             try:
                 if operation == 'EQU':
                     if operands.startswith('*'):
-                        self.cs.add_symbol(label, f'{location_counter:04X}')
+                        self.cs.add_symbol(label, f'{location_counter:04X}', self.cs.get_program_block())
                     else:
                         value = self.calculate_EQU(operands, location_counter, label)
-                        self.cs.add_symbol(label, value)
+                        self.cs.add_symbol(label, value, self.cs.get_program_block())
                         
                         
                     return
                 elif any(op in operands for op in ['+', '-', '/', '*']):
                     value = self.calculate_EQU(operands, location_counter, label)
-                    self.cs.add_symbol(label, f'{location_counter:04X}') 
+                    self.cs.add_symbol(label, f'{location_counter:04X}', self.cs.get_program_block()) 
                     operands = value
                 else:     
-                    self.cs.add_symbol(label, f'{location_counter:04X}')
+                    self.cs.add_symbol(label, f'{location_counter:04X}',self.cs.get_program_block())
             except ValueError as e:
                 print(f"Error: {e}")
                 
@@ -119,7 +119,7 @@ class PassOne:
         hex_location = f'{location_counter:04X}' #Convert location counter to hex string
         if operation == "LDB":
             # Push Value of base register to symbol table
-            self.cs.add_symbol("BASE", f'{location_counter:04X}')
+            self.cs.add_symbol("BASE", f'{location_counter:04X}',self.cs.get_program_block())
         elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'BASE' or operation == 'NOBASE':
             instruction_length = self.get_instruction_length(operation,operands)
             self.cs.update_current_block(instruction_length)
