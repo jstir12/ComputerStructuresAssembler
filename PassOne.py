@@ -76,12 +76,11 @@ class PassOne:
         
         #Check for USE directive. This indicates program switching
         if operation == 'USE':
-            
             block_name = operands if operands else 'Default'
 
-            #Finalize the length of the previos blokc
+            #Finalize the length of the current block
             if self.cs.get_program_block():
-                current_block = self.cs.get_program_block()
+                current_block = self.cs.get_program_block() or 0
                 if current_block in self.block_info:
                     self.block_info[current_block]['length'] = (self.cs.get_location_counter() - self.block_info[current_block]['address'])
 
@@ -112,72 +111,6 @@ class PassOne:
                 }
             if self.cs.get_location_counter() == None:
                 self.cs.update_location_counter(self.block_info[block_name]['address'])
-            ''''
-            self.cs.update_location_counter(location_counter) #Update the location counter for the new block
-            self.cs.set_program_block(operands if operands else 'Default')
-
-            #Initialize the location counter for the new block (If neeeded)
-            #if self.cs.get_location_counter() == None:
-                #self.cs.update_location_counter(0)
-
-            
-            #Map numbers to names
-            if operands is None:
-                operands = 'Default'
-            if operands not in self.program_blocks_maps:
-                self.program_block_amount += 1
-                self.program_blocks_maps[operands] = self.program_block_amount
-            #else:
-                #operands = self.program_blocks_maps[operands]
-
-            block_number = self.program_blocks_maps[operands]
-
-            if operands not in self.block_info:
-                if block_number == 0:
-                    starting_address = self.global_starting_address  #Set the starting address for the first block
-                else:
-                    previous_block = list(self.block_info.values())[-1]  #Set the last block in block_info
-                    starting_address = previous_block['address'] + previous_block['length']  #Calculate starting address for the new block
-            
-            #Enter the block information
-            self.block_info[operands] = {
-                'block_number': block_number,
-                'address': starting_address,
-                'length': 0
-            }
-
-            current_block = operands
-            if
-            #print(self.program_blocks_maps)'''
-
-
-
-            '''
-            #Calculate the starting address and legnth block
-            if operands not in self.block_info:
-                #Get the block number based on the program blocks map
-                block_number = self.program_blocks_maps[operands]
-                
-                if block_number == 0:
-                    starting_address = self.global_starting_address  #Set the starting address for the first block
-                else:
-                    if self.block_info:
-                        last_block = list(self.block_info.values())[-1]  #Set the last block in block_info
-                        starting_address = last_block['address'] + last_block['length']  #Calculate starting address for the new block
-                    else:
-                        starting_address = self.global_starting_address
-                
-                #Set the length to 0 for now (will be updated later)
-                length = 0
-
-                #Store the block information
-                self.block_info[operands] = {
-                    'block_number': block_number,
-                    'address': starting_address,
-                    'length': length
-                }
-
-                print(self.program_blocks_maps)'''
             
             print(self.program_blocks_maps)
             return
