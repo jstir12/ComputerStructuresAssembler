@@ -58,7 +58,7 @@ class ControlSection:
         return self.symbols
     
     def get_program_block(self):
-        return self.program_block
+        return self.program_block or 'Default'
     
     def get_external_refs(self):
         """Retrieves the external references for the control section."""

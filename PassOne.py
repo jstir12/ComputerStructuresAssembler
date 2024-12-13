@@ -76,11 +76,49 @@ class PassOne:
         
         #Check for USE directive. This indicates program switching
         if operation == 'USE':
+            
+            block_name = operands if operands else 'Default'
+
+            #Finalize the length of the previos blokc
+            if self.cs.get_program_block():
+                current_block = self.cs.get_program_block()
+                if current_block in self.block_info:
+                    self.block_info[current_block]['length'] = (self.cs.get_location_counter() - self.block_info[current_block]['address'])
+
+            #Switch to the new block
+            self.cs.set_program_block(block_name)
+
+            #Initialize the block if it is not in the block inforomation
+            if block_name not in self.block_info:
+                block_number = self.program_blocks_maps.get(block_name,len(self.program_blocks_maps))
+                self.program_blocks_maps[block_name] = block_number
+
+                #Calculate the starting address of the new block
+                if block_number == 0:
+                    starting_address = self.global_starting_address
+                elif self.block_info:
+                    previous_block = list(self.block_info.values())[-1]
+                    starting_address = previous_block['address'] + previous_block['length']
+                else:
+                    #Handling just in case the block is empty
+                    starting_address = self.global_starting_address
+                    
+
+                #Initialize the block information
+                self.block_info[block_name] = {
+                    'block_number': block_number,
+                    'address': starting_address,
+                    'length': 0
+                }
+            if self.cs.get_location_counter() == None:
+                self.cs.update_location_counter(self.block_info[block_name]['address'])
+            ''''
             self.cs.update_location_counter(location_counter) #Update the location counter for the new block
             self.cs.set_program_block(operands if operands else 'Default')
+
             #Initialize the location counter for the new block (If neeeded)
-            if self.cs.get_location_counter() == None:
-                self.cs.update_location_counter(0)
+            #if self.cs.get_location_counter() == None:
+                #self.cs.update_location_counter(0)
 
             
             #Map numbers to names
@@ -89,10 +127,31 @@ class PassOne:
             if operands not in self.program_blocks_maps:
                 self.program_block_amount += 1
                 self.program_blocks_maps[operands] = self.program_block_amount
-            else:
-                operands = self.program_blocks_maps[operands]
+            #else:
+                #operands = self.program_blocks_maps[operands]
 
-            print(self.program_blocks_maps)
+            block_number = self.program_blocks_maps[operands]
+
+            if operands not in self.block_info:
+                if block_number == 0:
+                    starting_address = self.global_starting_address  #Set the starting address for the first block
+                else:
+                    previous_block = list(self.block_info.values())[-1]  #Set the last block in block_info
+                    starting_address = previous_block['address'] + previous_block['length']  #Calculate starting address for the new block
+            
+            #Enter the block information
+            self.block_info[operands] = {
+                'block_number': block_number,
+                'address': starting_address,
+                'length': 0
+            }
+
+            current_block = operands
+            if
+            #print(self.program_blocks_maps)'''
+
+
+
             '''
             #Calculate the starting address and legnth block
             if operands not in self.block_info:
@@ -120,6 +179,7 @@ class PassOne:
 
                 print(self.program_blocks_maps)'''
             
+            print(self.program_blocks_maps)
             return
             
 
@@ -173,6 +233,17 @@ class PassOne:
         instruction_length = self.get_instruction_length(operation, operands if operands else None)
         self.cs.update_current_block(instruction_length)
                 
+    def finalize_block_lengths(self):
+        """Finalizes the lengths of the program blocks."""
+        if self.cs.get_program_block():
+            previous_block = self.cs.get_program_block()
+            if previous_block in self.block_info:
+                self.block_info[previous_block]['length'] = self.cs.get_location_counter() - self.block_info[previous_block]['address']
+
+        #Displaying the final block information
+        print(f"Block Name | Block Number | Starting Address | Length")
+        for block_name, block_data in self.block_info.items():
+            print(f"{block_name:10} | {block_data['block_number']:12} | {block_data['address']:07X} | {block_data['length']:06X}")
 
     def get_instruction_length(self, operation,operands):
         """Determine the length of an instruction based on its operation."""
@@ -349,6 +420,7 @@ class PassOne:
             #IF operator is = minus, set the program  block number to default program block number
         for cs in self.controlSections.values():
             cs.set_length(cs.get_location_counter() - cs.get_start_address())
+        self.finalize_block_lengths()
         return self.controlSections
     
     
