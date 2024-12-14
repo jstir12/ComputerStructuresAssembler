@@ -1,6 +1,6 @@
 import re
 class PassTwo:
-    def __init__(self, control_sections, op_table):
+    def __init__(self, control_sections, op_table,block_info):
         """self.symbol_table = symbol_table
         self.intermediate_code = intermediate_code
         self.machine_code = []
@@ -17,6 +17,7 @@ class PassTwo:
         self.op_table = op_table
         self.current_section = None
         self.basereg = None
+        self.block_info = block_info
         #self.block_table = block_table
 
 
@@ -261,12 +262,17 @@ class PassTwo:
         
         symbol_table = self.current_section.get_symbol_table()
         literal_table = self.current_section.get_literal_table()
+
+        block_number = 0 #Default block number
+
         # Direct (simple) addressing
         if n == 1 and i == 1:
             if operand.startswith('='):
                 label_address = literal_table[operand]
             else:
-                label_address = symbol_table.get_address(operand)
+                #label_address = symbol_table.get_address(operand)
+                label_address, block_number = symbol_table.get_address_and_block(operand)
+
         # Immediate or indirect addressing
         elif i == 1 and n == 0 and operand[1:].isdigit():
             label_address = f"{int(operand[1:]):04X}"
@@ -277,7 +283,12 @@ class PassTwo:
         
         if label_address is None:
             raise ValueError(f"Label '{operand}' not found in symbol table.")
-        return label_address
+
+        block_start_address = int(self.block_info[block_number][1], 16) #fetching the starting addres of the bloock whre the symbol is defined
+
+        absolute_address = block_start_address + int(label_address, 16)
+        return absolute_address
+    #label_address
 
     def determine_addressing_flags(self, operand):
         """Determine addressing flags n and i based on operand format."""

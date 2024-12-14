@@ -186,6 +186,7 @@ class PassOne:
         print(f"Block Name | Block Number | Starting Address | Length")
         for block_name, block_data in self.block_info.items():
             print(f"{block_name:10} | {block_data['block_number']:12} | {block_data['address']:07X} | {block_data['length']:06X}")
+        #return 
 
     def get_instruction_length(self, operation,operands):
         """Determine the length of an instruction based on its operation."""
@@ -363,8 +364,15 @@ class PassOne:
         for cs in self.controlSections.values():
             cs.set_length(cs.get_location_counter() - cs.get_start_address())
         self.finalize_block_lengths()
-        return self.controlSections
+
+        for block, info in self.block_info.items():
+            info['address'] = hex(info['address']).upper()[2:].zfill(4)  # Convert to hex and format
+            info['length'] = hex(info['length']).upper()[2:].zfill(4)    # Convert to hex and format
+
+        return self.controlSections, self.block_info
     
+#passOne = PassOne(OpTable())
+#print(passOne.run('Assembly/prog_blocks.txt'))
     
     
 

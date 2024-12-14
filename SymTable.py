@@ -11,6 +11,10 @@ class SymTable:
         if symbol not in self.symbols:
             raise KeyError(f"Symbol not found: {symbol}")
         return self.symbols[symbol][0]
+    def get_address_and_block(self, symbol):
+        if symbol not in self.symbols:
+            raise KeyError(f"Symbol not found: {symbol}")
+        return self.symbols[symbol][0], self.symbols[symbol][1]
     
     def exists(self, symbol):
         return symbol in self.symbols

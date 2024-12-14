@@ -12,9 +12,9 @@ def main():
     op_table = OpTable()
     # Create the PassOne object
     passOne = PassOne(op_table)
-    control_sections = passOne.run("Assembly/prog_blocks.txt")
+    control_sections,block_info = passOne.run("Assembly/prog_blocks.txt")
     # Create the PassTwo object
-    passTwo = PassTwo(control_sections, op_table)
+    passTwo = PassTwo(control_sections, op_table,block_info)
     passTwo.generate_machine_code()
     # Write the machine code to a file
     passTwo.write_object_code_file()
