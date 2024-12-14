@@ -15,6 +15,7 @@ class ControlSection:
         self.program_block = None
         self.machine_code = []
         self.functions = []
+        self.expressions = []
     
     def add_symbol(self, symbol_name, address,block_number):
         """Adds a local symbol to the control section."""
@@ -48,6 +49,8 @@ class ControlSection:
     def set_functions(self, functions):
         self.functions = functions
     
+    def get_expressions(self):
+        return self.expressions
     
     def get_symbol_address(self, symbol_name):
         """Retrieves the address of a symbol if it exists locally in this control section."""
@@ -146,6 +149,9 @@ class ControlSection:
     def add_literal(self, literal_name, literal_value):
         """Adds a literal to the literal table."""
         self.literal_table[literal_name] = literal_value
+    
+    def add_expression(self, expression):
+        self.expressions.append(expression)
     
     def get_literal_keys(self):
         """Retrieves the keys of the literal table."""

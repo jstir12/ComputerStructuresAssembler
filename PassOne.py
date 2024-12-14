@@ -139,11 +139,10 @@ class PassOne:
                         
                     return
                 elif any(op in operands for op in ['+', '-', '/', '*']):
-                    value = self.calculate_EQU(operands, location_counter, label)
-                    self.cs.add_symbol(label, f'{location_counter:04X}', self.cs.get_program_block()) 
-                    operands = value
-                else: 
-                    self.cs.add_symbol(label, f'{location_counter:04X}',self.cs.get_program_block())
+                    self.cs.add_expression([operands, label])
+                    self.cs.add_symbol(label, f'{location_counter:04X}') 
+                else:     
+                    self.cs.add_symbol(label, f'{location_counter:04X}')
             except ValueError as e:
                 print(f"Error: {e}")
                 
