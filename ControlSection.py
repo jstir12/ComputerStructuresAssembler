@@ -16,6 +16,8 @@ class ControlSection:
         self.machine_code = []
         self.functions = []
         self.expressions = []
+        self.immediates = []
+        
     
     def add_symbol(self, symbol_name, address,block_number):
         """Adds a local symbol to the control section."""
@@ -105,6 +107,12 @@ class ControlSection:
     def get_machine_code(self): 
         return self.machine_code
     
+    def get_immediates(self):
+        return self.immediates
+    
+    def add_immediate(self, immediate):
+        self.immediates.append(immediate)
+    
     def resolve_external_reference(self, symbol_name, global_symbol_table):
         """Resolves an external reference to a symbol by looking it up in the global symbol table."""
         if symbol_name in global_symbol_table:
@@ -146,9 +154,9 @@ class ControlSection:
     def add_function(self, function):
         self.functions.append(function)
     
-    def add_literal(self, literal_name, literal_value):
+    def add_literal(self, literal_name, literal_value, block):
         """Adds a literal to the literal table."""
-        self.literal_table[literal_name] = literal_value
+        self.literal_table[literal_name] = [literal_value, block]
     
     def add_expression(self, expression):
         self.expressions.append(expression)

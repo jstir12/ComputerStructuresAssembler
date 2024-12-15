@@ -18,7 +18,8 @@ class PassTwo:
         self.current_section = None
         self.basereg = None
         self.block_info = block_info
-        #self.block_table = block_table
+        self.block_flag = False
+        self.last_block = "Default"
 
 
 #Find the value for current program block. Take starting address and add it to label adrresss
@@ -40,17 +41,24 @@ class PassTwo:
                         
             for line in intermediate_code:
                 # Assume the first element in line is the location counter (PC)
-                pc = int(line[0], 16)
+                pc = int(line[1], 16)
                 is_function = False
+
                 # Parse line for label, mnemonic, and operand
-                label, mnemonic, operand = (None, None, None)
-                if len(line) == 4:
-                    _, label, mnemonic, operand = line
-                elif len(line) == 3:
-                    _, mnemonic, operand = line
+                block, label, mnemonic, operand = (None, None, None, None)
+                if len(line) == 5:
+                    block, _, label, mnemonic, operand = line
+                elif len(line) == 4:
+                    block, _, mnemonic, operand = line
                 else:
-                    mnemonic = line[1]
+                    block, mnemonic = line
                 
+                if not block == self.last_block:
+                    self.block_flag = True
+                    self.last_block = block
+                else:
+                    self.block_flag = False
+                    
                 # Need to keep track of subroutines
                 if mnemonic == 'JSUB' or mnemonic[1:] == "JSUB":
                     control_section.add_function(operand)
@@ -72,10 +80,10 @@ class PassTwo:
                         object_code = self.get_X_C(operand)
                     elif label == '*':
                         object_code = self.get_X_C(mnemonic[1:])
-                        control_section.update_machine_code([True, None,f"{int(line[0],16):04X}", object_code])
+                        control_section.update_machine_code([self.block_flag,True, None,f"{int(line[1],16):04X}", object_code])
                         continue
                         
-                    control_section.update_machine_code([False, None,f"{int(line[0],16):04X}", object_code])
+                    control_section.update_machine_code([self.block_flag,False, None,f"{int(line[1],16):04X}", object_code])
                     continue
                 
                 # Check if the mnemonic represents a format 4 instruction
@@ -99,9 +107,9 @@ class PassTwo:
                     object_code = self.calculate_object_code(opcode, format, operand, pc)
                     if object_code:
                         if is_function:
-                            new_object_code = [False, label, f"{int(line[0],16):04X}", object_code]
+                            new_object_code = [self.block_flag, False, label, f"{int(line[1],16):04X}", object_code]
                         else:
-                            new_object_code = [False, None, f"{int(line[0],16):04X}", object_code]
+                            new_object_code = [self.block_flag, False, None, f"{int(line[1],16):04X}", object_code]
                         control_section.update_machine_code(new_object_code)
                         continue
                 except ValueError as e:
@@ -146,13 +154,18 @@ class PassTwo:
                 record_start_address = None  # Start address of the current text record
                 record_length = 0  # Length of the current text record in bytes
 
-                for literal_flag, function, pc, code in machine_code:
+                previous_literal = False
+                for block_flag, literal_flag, function, pc, code in machine_code:
                     if record_start_address is None:
                         record_start_address = pc
 
                     # Check if adding this code would exceed 30 bytes
                     code_length = len(code) // 2  # Each 2 hex digits = 1 byte
-                    if record_length + code_length > 30 or function is not None and functions == 0 or literal_flag:
+                    if record_length + code_length > 30 or function is not None and functions == 0 or (literal_flag and not previous_literal) or block_flag:
+                        if literal_flag:
+                            previous_literal = True
+                        else:
+                            previous_literal = False
                         # Write the current text record to the file
                         if function is not None:
                             functions += 1
@@ -167,7 +180,7 @@ class PassTwo:
                     # Add the object code to the current text record
                     text_record += code
                     record_length += code_length
-
+                    previous_literal = literal_flag
                 # Write the final text record, if any
                 if text_record:
                     record_start_address = int(record_start_address,16)
@@ -226,7 +239,7 @@ class PassTwo:
                     disp, b, p = self.calculate_disp(label_address, format, self.basereg, pc)
                     disp = int(disp)
                 else:
-                    disp = int(label_address, 16)
+                    disp = label_address
                     b, p = 0, 0
 
             # Combine opcode and flags into final object code
@@ -244,10 +257,13 @@ class PassTwo:
         """Calculate displacement and addressing mode flags."""
         b, p = 0, 0
 
+        if isinstance(label_address, str):
+            label_address = int(label_address, 16)
+            
         if format == 4:
-            return f"{int(label_address, 16)}", b, p
+            return label_address, b, p
 
-        disp = int(label_address, 16) - pc
+        disp = label_address - pc
 
         # PC-relative addressing
         if -2048 <= disp <= 2047:
@@ -255,7 +271,7 @@ class PassTwo:
             return f"{disp & 0xFFF}", b, p
         # Base-relative addressing
         else:
-            disp = int(label_address, 16) - int(base_register, 16)
+            disp = label_address - int(base_register, 16)
             if 0 <= disp < 4096:
                 b = 1
                 return f"{disp & 0xFFF:03X}", b, p
@@ -267,29 +283,35 @@ class PassTwo:
         
         symbol_table = self.current_section.get_symbol_table()
         literal_table = self.current_section.get_literal_table()
-
+        immediate_table = self.current_section.get_immediates()
+        
         block_number = 0 #Default block number
 
         # Direct (simple) addressing
         if n == 1 and i == 1:
             if operand.startswith('='):
-                label_address = literal_table[operand]
+                label_address, block_number = literal_table[operand]
             else:
                 #label_address = symbol_table.get_address(operand)
                 label_address, block_number = symbol_table.get_address_and_block(operand)
 
         # Immediate or indirect addressing
-        elif i == 1 and n == 0 and operand[1:].isdigit():
-            label_address = f"{int(operand[1:]):04X}"
+        elif i == 1 and n == 0 and operand[1:].isdigit() or i == 1 and n == 0 and operand[1:] in immediate_table:
+            if operand[1:].isdigit():
+                label_address = f"{int(operand[1:]):04X}"
+            else:
+                label_address = symbol_table.get_address(operand[1:])
+            
+            return int(label_address, 16)
         elif i == 0 and n == 1:
-            label_address = symbol_table.get_address(operand[1:])
+            label_address, block_number = symbol_table.get_address_and_block(operand[1:])
         else:
-            label_address = symbol_table.get_address(operand[1:])
+            label_address, block_number = symbol_table.get_address_and_block(operand[1:])
         
         if label_address is None:
             raise ValueError(f"Label '{operand}' not found in symbol table.")
-
-        block_start_address = int(self.block_info[block_number][1], 16) #fetching the starting addres of the bloock whre the symbol is defined
+            
+        block_start_address = int(self.block_info[block_number]['address'], 16) #fetching the starting addres of the bloock whre the symbol is defined
 
         absolute_address = block_start_address + int(label_address, 16)
         return absolute_address

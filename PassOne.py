@@ -77,7 +77,7 @@ class PassOne:
         #Check for USE directive. This indicates program switching
         if operation == 'USE':
             block_name = operands if operands else 'Default'
-
+            
             #Finalize the length of the current block
             if self.cs.get_program_block():
                 current_block = self.cs.get_program_block() or 0
@@ -113,6 +113,8 @@ class PassOne:
             if self.cs.get_location_counter() == None:
                 self.cs.update_location_counter(self.block_info[block_name]['address'])
             
+            location_counter = self.cs.get_location_counter()
+            
             print(self.program_blocks_maps)
             return
             
@@ -120,11 +122,11 @@ class PassOne:
         elif operation == 'LTORG' or operation == 'END': #Check for LTORG or END
             #Assign the literals to the location counter
             for key in self.cs.get_literal_keys():
-                if self.cs.get_literal_value(key) == None:
+                if self.cs.get_literal_value(key)[1] is None:
                     location_counter = self.cs.get_location_counter()
-                    self.cs.add_literal(key, f'{location_counter:04X}')
+                    self.cs.add_literal(key, f'{location_counter:04X}', self.cs.get_program_block())
                     hex_location = f'{location_counter:04X}' #Convert location counter to hex string
-                    self.cs.update_intermediate_code([hex_location, '*', key, ''])
+                    self.cs.update_intermediate_code([self.cs.get_program_block(), hex_location, '*', key, ''])
                     self.cs.update_current_block(self.calcualte_X_C(key[1:]))
             return
         if label:
@@ -134,22 +136,23 @@ class PassOne:
                         self.cs.add_symbol(label, f'{location_counter:04X}', self.cs.get_program_block())
                     else:
                         value = self.calculate_EQU(operands, location_counter, label)
-                        self.cs.add_symbol(label, value, self.cs.get_program_block())
+                        self.cs.add_symbol(label, value, "Default")
+                        self.cs.add_immediate(label)
                         
                         
                     return
                 elif any(op in operands for op in ['+', '-', '/', '*']):
                     self.cs.add_expression([operands, label])
-                    self.cs.add_symbol(label, f'{location_counter:04X}') 
+                    self.cs.add_symbol(label, f'{location_counter:04X}', self.cs.get_program_block()) 
                 else:     
-                    self.cs.add_symbol(label, f'{location_counter:04X}')
+                    self.cs.add_symbol(label, f'{location_counter:04X}', self.cs.get_program_block())
             except ValueError as e:
                 print(f"Error: {e}")
                 
         # Check for literals
         if operands:
             if operands.startswith('=C') or operands.startswith('=X'):
-                self.cs.add_literal(operands, None)
+                self.cs.add_literal(operands, None, None)
             
         #Store the intermediate code for Pass Two
         hex_location = f'{location_counter:04X}' #Convert location counter to hex string
@@ -160,7 +163,7 @@ class PassOne:
             instruction_length = self.get_instruction_length(operation,operands)
             self.cs.update_current_block(instruction_length)
             return
-        self.cs.update_intermediate_code([hex_location, label, operation, operands if operands else ''])
+        self.cs.update_intermediate_code([self.cs.get_program_block(), hex_location, label, operation, operands if operands else ''])
 
         #Updating location counter based on instruction length        
         instruction_length = self.get_instruction_length(operation, operands if operands else None)
@@ -276,7 +279,7 @@ class PassOne:
             right_operand = stack.pop()
             left_operand = stack.pop()
 
-            if not left_operand[0] or not right_operand[0]:
+            if left_operand[0] is None or right_operand[0] is None:
                 # One or both operands are unresolved (external references)
                 stack.append([0, right_operand[1]])  # Placeholder value
                 self.add_modification_record(operator, left_operand[1], right_operand[1], location_counter, label)
@@ -351,7 +354,12 @@ class PassOne:
         self.cs.set_start_address(self.global_starting_address)
         self.controlSections[label] = self.cs
         self.cs.set_program_block('Default')
-        self.cs.update_location_counter(self.global_starting_address)                     
+        self.cs.update_location_counter(self.global_starting_address)
+        self.block_info['Default'] = {
+            'block_number': 0,
+            'address': self.global_starting_address,
+            'length': 0
+        }                     
     
     def run(self, input_file):
         #Will process the input file and return the intermediate code for Pass Two
