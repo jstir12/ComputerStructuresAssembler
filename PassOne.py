@@ -23,7 +23,7 @@ class PassOne:
         self.global_starting_address = 0
         self.macro_code = []
         self.is_macro = False
-        
+        self.line_count = 0
         self.program_blocks_maps = {"Default": 0}
         self.program_block_amount = 0
         self.block_info = {} #Dictionary to store block name, number, address, and length
@@ -44,6 +44,7 @@ class PassOne:
         label = None
         operation = None
         operands = None
+        self.line_count += 1
         
         #Since the codes are stored in inside, arrays, we can use their length to determine labels, operations, and operands
         if self.is_macro:
@@ -90,7 +91,9 @@ class PassOne:
             self.cs.set_params(params)
             self.cs.add_macro()
             return
-            
+        elif self.line_count == 1:
+            self.global_starting_address = 0
+            self.create_new_control_section('Default')   
         
         # Set location counter for the current block
         location_counter = self.cs.get_location_counter()
@@ -99,17 +102,18 @@ class PassOne:
         if operation == 'USE':
             block_name = operands if operands else 'Default'
             
+            block_info = self.cs.get_block_info()
             #Finalize the length of the current block
             if self.cs.get_program_block():
                 current_block = self.cs.get_program_block() or 0
-                if current_block in self.block_info:
-                    self.block_info[current_block]['length'] = (self.cs.get_location_counter() - self.block_info[current_block]['address'])
+                if current_block in block_info:
+                    block_info[current_block]['length'] = (self.cs.get_location_counter() - block_info[current_block]['address'])
 
             #Switch to the new block
             self.cs.set_program_block(block_name)
 
             #Initialize the block if it is not in the block inforomation
-            if block_name not in self.block_info:
+            if block_name not in block_info:
                 block_number = self.program_blocks_maps.get(block_name,len(self.program_blocks_maps))
                 self.program_blocks_maps[block_name] = block_number
 
@@ -117,8 +121,8 @@ class PassOne:
             #Calculate the starting address of the new block
                 if block_number == 0:
                     starting_address = self.global_starting_address
-                elif self.block_info:
-                    previous_block = list(self.block_info.values())[-1]
+                elif block_info:
+                    previous_block = list(block_info.values())[-1]
                     starting_address = previous_block['address'] + previous_block['length']
                 else:
                     #Handling just in case the block is empty
@@ -126,13 +130,9 @@ class PassOne:
                     
 
                 #Initialize the block information
-                self.block_info[block_name] = {
-                    'block_number': block_number,
-                    'address': self.global_starting_address,
-                    'length': 0
-                }
+                self.cs.add_block_info(block_name, block_number, self.global_starting_address, 0)
             if self.cs.get_location_counter() == None:
-                self.cs.update_location_counter(self.block_info[block_name]['address'])
+                self.cs.update_location_counter(block_info[block_name]['address'])
             
             location_counter = self.cs.get_location_counter()
             
@@ -192,14 +192,15 @@ class PassOne:
                 
     def finalize_block_lengths(self):
         #Finalizes the lengths of the program blocks.
-        for key, values in self.block_info.items():
+        block_info = self.cs.get_block_info()
+        for key, values in block_info.items():
             values['length'] = self.cs.get_location_counter_with_block(key) - values['address']
         
         # Initialize the starting address
         current_address = self.global_starting_address
 
         # Iterate through the dictionary in sorted order of block_number
-        for block_name, block_data in sorted(self.block_info.items(), key=lambda x: x[1]['block_number']):
+        for block_name, block_data in sorted(block_info.items(), key=lambda x: x[1]['block_number']):
             # Set the starting address for the current block
             block_data['address'] = current_address
             # Update the current_address for the next block
@@ -207,7 +208,7 @@ class PassOne:
 
         #Displaying the final block information
         print(f"Block Name | Block Number | Starting Address | Length")
-        for block_name, block_data in self.block_info.items():
+        for block_name, block_data in block_info.items():
             print(f"{block_name:10} | {block_data['block_number']:12} | {block_data['address']:07X} | {block_data['length']:06X}")
         #return 
 
@@ -376,11 +377,7 @@ class PassOne:
         self.controlSections[label] = self.cs
         self.cs.set_program_block('Default')
         self.cs.update_location_counter(self.global_starting_address)
-        self.block_info['Default'] = {
-            'block_number': 0,
-            'address': self.global_starting_address,
-            'length': 0
-        }                     
+        self.cs.add_block_info('Default', 0, self.global_starting_address, 0)      
     
     def run(self, input_file):
         #Will process the input file and return the intermediate code for Pass Two
@@ -411,13 +408,16 @@ class PassOne:
             #IF operator is = minus, set the program  block number to default program block number
         for cs in self.controlSections.values():
             cs.set_length(cs.get_location_counter() - cs.get_start_address())
-        self.finalize_block_lengths()
+            block_info = cs.get_block_info()
+            self.finalize_block_lengths()
+            for block, info in block_info.items():
+                info['address'] = hex(info['address']).upper()[2:].zfill(4)  # Convert to hex and format
+                info['length'] = hex(info['length']).upper()[2:].zfill(4)    # Convert to hex and format
+            
 
-        for block, info in self.block_info.items():
-            info['address'] = hex(info['address']).upper()[2:].zfill(4)  # Convert to hex and format
-            info['length'] = hex(info['length']).upper()[2:].zfill(4)    # Convert to hex and format
+        
 
-        return self.controlSections, self.block_info
+        return self.controlSections
     
 #passOne = PassOne(OpTable())
 #print(passOne.run('Assembly/prog_blocks.txt'))

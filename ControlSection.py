@@ -19,7 +19,7 @@ class ControlSection:
         self.functions = []
         self.expressions = []
         self.immediates = []
-        
+        self.block_info = {}
         self.macro_name = None
         self.params = None
     
@@ -132,6 +132,12 @@ class ControlSection:
     
     def get_immediates(self):
         return self.immediates
+    
+    def get_block_info(self):
+        return self.block_info
+    
+    def add_block_info(self, block_name, block_number, address, length):
+        self.block_info[block_name] = {"block_number": block_number, "address": address, "length": length}
     
     def add_immediate(self, immediate):
         self.immediates.append(immediate)
