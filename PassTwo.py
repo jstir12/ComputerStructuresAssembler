@@ -1,18 +1,6 @@
 import re
 class PassTwo:
     def __init__(self, control_sections, op_table):
-        """self.symbol_table = symbol_table
-        self.intermediate_code = intermediate_code
-        self.machine_code = []
-        self.modifications = []  # To track modification records
-        self.op_table = op_table
-        self.basereg = basereg
-        self.program_name = program_name
-        self.functions = []
-        self.start_address = int(start_address, 16)
-        self.program_length = int(program_length, 16)
-        self.literal_table = literal_table
-        self.modification_records = modification_records"""
         self.control_sections = control_sections
         self.op_table = op_table
         self.current_section = None
@@ -20,10 +8,6 @@ class PassTwo:
         self.output = []        
         self.block_flag = False
         self.last_block = "Default"
-
-
-#Find the value for current program block. Take starting address and add it to label adrresss
-
 
     def generate_machine_code(self):
         # Set Base register

@@ -6,18 +6,7 @@ from ControlSection import ControlSection
 
 class PassOne:
     def __init__(self, OpTable):
-        #self.literal_table = LiteralTable()
-        #self.symbol_table = SymTable
         self.op_table = OpTable
-        #self.literal_table = {}
-        #self.location_counters = {"Default": 0} #Store location counters for different blocks
-        #self.current_block = "Default" #Current block: Default
-        #self.location_counter = 0
-        #self.starting_address = 0
-        #self.program_length = 0
-        #self.intermediate_code = [] #Store intermediate code for Pass Two
-        #self.program_name = 'Basic' #Default program name
-        #self.modification_records = [] #Store modification records for Pass Two
         self.controlSections = {}
         self.cs = None
         self.global_starting_address = 0
@@ -27,15 +16,6 @@ class PassOne:
         self.program_blocks_maps = {"Default": 0}
         self.program_block_amount = 0
         self.block_info = {} #Dictionary to store block name, number, address, and length
-
-
-
-
-#Create 2 dict: 1 that maps to numbers to names, 1 maps name to starting address and length
-#Add new variable up top to keep track of program block amount
-#Add the end, calcularte each program starting block based of length of previos rogram block
-#Anytime we're referencing symtable getting address, we need to ensure the correct index and not just the array
-
 
     def process_line(self, line): 
         #Next, process the line
