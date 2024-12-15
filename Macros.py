@@ -1,36 +1,38 @@
 import re
 
-class MacroTable:
+class Macros:
     def __init__(self):
         self.macros = {}
 
     def define_macro(self, name, params, body):
         if name in self.macros:
             raise ValueError(f"Macro {name} is already defined.")
-        self.macros[name] = {"params": params, "body": body}
+        self.macros[name] = [body, params]
 
-    def expand_macros(self, code):
+    def expand_macros(self, name, args):
         expanded_code = []
+        code, params = self.macros[name]
         for line in code:
-            line_parts = line.split()
-            if line_parts[0] in self.macros:
-                macro_name = line_parts[0]
-                macro = self.macros[macro_name]
-                
-                # Substitute parameters in the macro body
-                if len(line_parts) > 1:
-                    args = line_parts[1].split(",")  # Handle comma-separated arguments
-                    if len(args) != len(macro["params"]):
-                        raise ValueError(f"Incorrect number of arguments for macro {macro_name}. Expected {len(macro['params'])}, got {len(args)}.")
-                    
-                    expanded = []
-                    for instruction in macro["body"]:
-                        for param, arg in zip(macro["params"], args):
-                            # Use regular expressions to ensure we are replacing whole words only
-                            instruction = re.sub(rf'\b{param}\b', arg, instruction)
-                        expanded.append(instruction)
-                    expanded_code.extend(expanded)
-            else:
-                expanded_code.append(line)
+            # Make a copy of the line to prevent changes to the original array
+            line_copy = list(line)
+            
+            if len(line_copy) == 3:
+                if any(param in line_copy[2] for param in params):  # Check if any param is in line[2]
+                    for param in params:
+                        if param in line_copy[2]:
+                            # Replace only the part of line_copy[2] that matches param
+                            line_copy[2] = line_copy[2].replace(param, args[params.index(param)])
+
+            elif len(line_copy) == 2:
+                if any(param in line_copy[1] for param in params):  # Check if any param is in line[1]
+                    for param in params:
+                        if param in line_copy[1]:
+                            # Replace only the part of line_copy[1] that matches param
+                            line_copy[1] = line_copy[1].replace(param, args[params.index(param)])
+                            break
+
+            # Append the modified copy of the line to expanded_code
+            expanded_code.append(line_copy)
+
         return expanded_code
 

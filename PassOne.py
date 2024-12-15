@@ -21,6 +21,9 @@ class PassOne:
         self.controlSections = {}
         self.cs = None
         self.global_starting_address = 0
+        self.macro_code = []
+        self.is_macro = False
+        
         self.program_blocks_maps = {"Default": 0}
         self.program_block_amount = 0
         self.block_info = {} #Dictionary to store block name, number, address, and length
@@ -43,6 +46,15 @@ class PassOne:
         operands = None
         
         #Since the codes are stored in inside, arrays, we can use their length to determine labels, operations, and operands
+        if self.is_macro:
+            if line[0] == 'MEND':
+                self.is_macro = False
+                self.cs.update_macro(self.macro_code)
+                self.macro_code = []
+                return
+            else:
+                self.macro_code.append(line)
+                return
         if len(line) == 3:
             label = line[0]
             operation = line[1] #The operation is the second element in the array
@@ -70,6 +82,15 @@ class PassOne:
             operands = operands.split(',')
             self.cs.set_external_refs(operands)
             return
+        elif operation == 'MACRO':
+            macro_name = label
+            self.is_macro = True
+            params = operands.split(',')
+            self.cs.set_macro_name(macro_name)
+            self.cs.set_params(params)
+            self.cs.add_macro()
+            return
+            
         
         # Set location counter for the current block
         location_counter = self.cs.get_location_counter()
@@ -366,6 +387,26 @@ class PassOne:
         #First, pre-process the file
         lines = self.pre_process(input_file)
         for line in lines:
+            if self.cs :
+                macros = self.cs.get_macros()
+                line_length = len(line)
+                args = [] 
+                if line[0] in macros or line_length >= 2 and line[1] in macros:
+                    if line_length == 3:
+                        macro_name = line[1]
+                        args = line[2].split(',')
+                    else:
+                        macro_name = line[0]
+                        args = line[1].split(',')
+                    macro = self.cs.get_macro(macro_name)    
+                    macro_line_number = 0
+                    # Need to expand macro and only process those lines
+                    code = macro.expand_macros(macro_name, args)
+                    if line_length == 3:
+                        code[0].insert(0, line[0])
+                    for line in code:
+                        self.process_line(line)
+                    continue    
             self.process_line(line)
             #IF operator is = minus, set the program  block number to default program block number
         for cs in self.controlSections.values():

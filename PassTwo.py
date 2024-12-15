@@ -17,6 +17,7 @@ class PassTwo:
         self.op_table = op_table
         self.current_section = None
         self.basereg = None
+        self.output = []        
         self.block_info = block_info
         self.block_flag = False
         self.last_block = "Default"
@@ -80,9 +81,11 @@ class PassTwo:
                         object_code = self.get_X_C(operand)
                     elif label == '*':
                         object_code = self.get_X_C(mnemonic[1:])
+                        self.output.append([f'{int(line[0],16):04X}', mnemonic, operand, object_code])
                         control_section.update_machine_code([self.block_flag,True, None,f"{int(line[1],16):04X}", object_code])
                         continue
-                        
+                    
+                    self.output.append([f'{int(line[0],16):04X}', mnemonic, operand, object_code])    
                     control_section.update_machine_code([self.block_flag,False, None,f"{int(line[1],16):04X}", object_code])
                     continue
                 
@@ -110,6 +113,7 @@ class PassTwo:
                             new_object_code = [self.block_flag, False, label, f"{int(line[1],16):04X}", object_code]
                         else:
                             new_object_code = [self.block_flag, False, None, f"{int(line[1],16):04X}", object_code]
+                        self.output.append([f'{int(line[0],16):04X}', mnemonic, operand, object_code])
                         control_section.update_machine_code(new_object_code)
                         continue
                 except ValueError as e:
@@ -118,6 +122,12 @@ class PassTwo:
 
     def write_object_code_file(self):
         amount = 0
+        # First write basic output file
+        
+        with open('Object_Code_Files/object_code.txt', 'w') as obj_file:
+            for line in self.output:
+                obj_file.write('\t'.join(map(str, line)) + '\n')
+                
         for control_section in self.control_sections.values():
             amount += 1
             program_name = control_section.get_name()
@@ -234,7 +244,10 @@ class PassTwo:
                 b, p = 0, 0
                 
             else:
-                label_address = self.get_label_address(operand, n, i)
+                if operand.startswith('*'):
+                    label_address = f'{pc - int(operand[1:]) - format:04X}'
+                else:
+                    label_address = self.get_label_address(operand, n, i)
                 if i == 0 and n == 0 or i == 0 and n == 1 or i == 1 and n == 1 or i == 1 and not operand[1:].isdigit():
                     disp, b, p = self.calculate_disp(label_address, format, self.basereg, pc)
                     disp = int(disp)

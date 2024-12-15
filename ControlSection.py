@@ -1,9 +1,11 @@
 from SymTable import SymTable
+from Macros import Macros
 class ControlSection:
     def __init__(self, name):
         """Initializes a control section with its name."""
         self.name = name  # Name of the control section
         self.symbols = SymTable()   # Local symbols (name -> address)
+        self.macros = {}
         self.external_refs = []  # External references (list of symbol names)
         self.external_defs = {}
         self.start_address = 0  # Starting address of the control section in memory
@@ -18,12 +20,22 @@ class ControlSection:
         self.expressions = []
         self.immediates = []
         
+        self.macro_name = None
+        self.params = None
     
     def add_symbol(self, symbol_name, address,block_number):
         """Adds a local symbol to the control section."""
         if symbol_name in self.external_defs and self.external_defs[symbol_name] is None:
             self.set_external_defs_address(symbol_name, address)
         self.symbols.add_symbol(symbol_name, address, block_number)
+    
+    def add_macro(self):
+        """Adds a macro to the control section."""
+        self.macros[self.macro_name] = Macros()
+    
+    def update_macro(self, body):
+        """Updates a macro in the control section."""
+        self.macros[self.macro_name].define_macro(self.macro_name, self.params, body)
     
     def set_external_refs(self, external_refs):
         """Sets the external references for the control section."""
@@ -51,6 +63,11 @@ class ControlSection:
     def set_functions(self, functions):
         self.functions = functions
     
+    def set_macro_name(self, macro_name):
+        self.macro_name = macro_name
+    
+    def set_params(self, params):
+        self.params = params
     def get_expressions(self):
         return self.expressions
     
@@ -106,6 +123,12 @@ class ControlSection:
     
     def get_machine_code(self): 
         return self.machine_code
+    
+    def get_macros(self):
+        return self.macros
+    
+    def get_macro(self, macro_name):
+        return self.macros[macro_name]
     
     def get_immediates(self):
         return self.immediates
