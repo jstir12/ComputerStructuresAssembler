@@ -17,8 +17,8 @@ This is a two pass assembler in python
 
 ## Usage
 
-1. **Run the Assembler**:
-  -  Navigate to Project Folder
+1. **Run the Assembler**
+  - Navigate to the Project Folder.
 
 ```sh
 python ./main.py
