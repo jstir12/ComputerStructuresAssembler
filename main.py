@@ -30,3 +30,6 @@ def main():
     # Write the machine code to a file
     passTwo.write_object_code_file()
     print(f"File: {file_path}, successfully processed.")
+
+if __name__ == "__main__":
+    main()

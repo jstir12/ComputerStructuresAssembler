@@ -51,6 +51,7 @@ class PassOne:
             self.create_new_control_section(label)
             return
         elif operands and operands == 'CSECT':
+            self.finalize_block_lengths()
             self.create_new_control_section(operation)
             return
         elif operation == 'EXTDEF':
@@ -157,7 +158,7 @@ class PassOne:
         hex_location = f'{location_counter:04X}' #Convert location counter to hex string
         if operation == "LDB":
             # Push Value of base register to symbol table
-            self.cs.add_symbol("BASE", f'{location_counter:04X}',self.cs.get_program_block())
+            self.cs.add_symbol("BASE",operands,self.cs.get_program_block())
         elif operation == 'RESW' or operation == 'RESB' or operation == 'RESD' or operation == 'RESQ' or operation == 'BASE' or operation == 'NOBASE':
             instruction_length = self.get_instruction_length(operation,operands)
             self.cs.update_current_block(instruction_length)
