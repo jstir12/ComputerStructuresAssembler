@@ -1,4 +1,5 @@
 import re
+import os
 class PassTwo:
     def __init__(self, control_sections, op_table):
         self.control_sections = control_sections
@@ -106,7 +107,14 @@ class PassTwo:
     def write_object_code_file(self):
         amount = 0
         # First write basic output file
-        
+
+        # Define the folder path
+        folder_path = "Object_Code_Files"
+
+        # Check if the folder exists and create it if it doesn't
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+
         with open('Object_Code_Files/object_code.txt', 'w') as obj_file:
             for line in self.output:
                 obj_file.write('\t'.join(map(str, line)) + '\n')
