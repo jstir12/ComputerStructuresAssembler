@@ -17,9 +17,10 @@ This is a two pass assembler in python
 
 ## Usage
 
-1. **Run the Assembler**:
+1. **Run the Assembler**: 
+  -Navigate to Project Folder
    ```sh
-   python main.py
+   python ./main.py
    ```
 2. **Input File**
    -The assembler will prompt you to enter the name of the assembly file (without extension) located in the `Assembly/` directory.
