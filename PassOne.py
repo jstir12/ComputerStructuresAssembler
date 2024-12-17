@@ -115,7 +115,6 @@ class PassOne:
             
             location_counter = self.cs.get_location_counter()
             
-            print(self.program_blocks_maps)
             return
             
 
@@ -185,11 +184,7 @@ class PassOne:
             # Update the current_address for the next block
             current_address += block_data['length']
 
-        #Displaying the final block information
-        print(f"Block Name | Block Number | Starting Address | Length")
-        for block_name, block_data in block_info.items():
-            print(f"{block_name:10} | {block_data['block_number']:12} | {block_data['address']:07X} | {block_data['length']:06X}")
-        #return 
+        return
 
     def get_instruction_length(self, operation,operands):
         """Determine the length of an instruction based on its operation."""

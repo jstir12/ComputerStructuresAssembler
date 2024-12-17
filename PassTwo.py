@@ -120,7 +120,14 @@ class PassTwo:
             external_defs = control_section.get_external_defs()
             machine_code = control_section.get_machine_code()
             start_address = control_section.get_start_address()
-            program_length = control_section.get_length()
+            block_info = control_section.get_block_info()
+            
+            program_length = 0
+            for block, info in block_info.items():
+                program_length += int(info['length'], 16)
+                
+                
+            
             
             with open(file_name, 'w') as obj_file:
                 # Write the Header Record
