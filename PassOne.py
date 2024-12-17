@@ -385,8 +385,8 @@ class PassOne:
             block_info = cs.get_block_info()
             self.finalize_block_lengths()
             for block, info in block_info.items():
-                info['address'] = hex(info['address']).upper()[2:].zfill(4)  # Convert to hex and format
-                info['length'] = hex(info['length']).upper()[2:].zfill(4)    # Convert to hex and format
+                info['address'] = hex(info['address']).upper()[2:].zfill(4)  #Convert to hex and format
+                info['length'] = hex(info['length']).upper()[2:].zfill(4)    
             
 
         
