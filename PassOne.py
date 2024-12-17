@@ -15,7 +15,6 @@ class PassOne:
         self.line_count = 0
         self.program_blocks_maps = {"Default": 0}
         self.program_block_amount = 0
-        self.block_info = {} #Dictionary to store block name, number, address, and length
 
     def process_line(self, line): 
         #Next, process the line

@@ -19,7 +19,7 @@ def main():
     passTwo.generate_machine_code()
     # Write the machine code to a file
     passTwo.write_object_code_file()
-    print("Machine code written to object_code.txt")
+    print(f"File: {file_path}, successfully processed.")
     
     
 
