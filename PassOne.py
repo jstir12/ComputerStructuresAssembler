@@ -126,7 +126,7 @@ class PassOne:
                     self.cs.add_literal(key, f'{location_counter:04X}', self.cs.get_program_block())
                     hex_location = f'{location_counter:04X}' #Convert location counter to hex string
                     self.cs.update_intermediate_code([self.cs.get_program_block(), hex_location, '*', key, ''])
-                    self.cs.update_current_block(self.calcualte_X_C(key[1:]))
+                    self.cs.update_current_block(self.calculate_X_C(key[1:]))
             return
         if label:
             try:
@@ -200,7 +200,7 @@ class PassOne:
         elif operation == 'WORD':
             return 3
         elif operation == 'BYTE':
-            return self.calcualte_X_C(operands)
+            return self.calculate_X_C(operands)
         elif operation == 'BASE':
             return 0
         elif operation == 'NOBASE':
@@ -243,7 +243,7 @@ class PassOne:
             print('Error: File was not found.')
             return []
     
-    def calcualte_X_C(self, operands):
+    def calculate_X_C(self, operands):
         #Calculate the length of the string
         if operands.startswith('X'):
             return (len(operands) - 3) // 2
@@ -385,10 +385,7 @@ class PassOne:
             block_info = cs.get_block_info()
             self.finalize_block_lengths()
             for block, info in block_info.items():
-                info['address'] = hex(info['address']).upper()[2:].zfill(4)  #Convert to hex and format
-                info['length'] = hex(info['length']).upper()[2:].zfill(4)    
-            
-
-        
-
+                info['address'] = hex(info['address']).upper()[2:].zfill(4)  # Convert to hex and format
+                info['length'] = hex(info['length']).upper()[2:].zfill(4)    # Convert to hex and format
+    
         return self.controlSections
